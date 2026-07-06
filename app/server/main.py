@@ -7,6 +7,8 @@ from fastapi.templating import Jinja2Templates
 from app.database.models import init_db, SessionLocal, AnomalyLog
 from app.core.keyframe_detector import MotionKeyframeExtractor
 from app.core.vision_engine import VigilProctorEngine
+from app.core.audio_engine import AudioAnomalyDetector
+
 
 app = FastAPI(title="VigilProctor AI Systems")
 templates = Jinja2Templates(directory="app/templates")
@@ -56,9 +58,11 @@ async def run_local_proctoring_loop(student_id: str):
     cap = cv2.VideoCapture(0)
     extractor = MotionKeyframeExtractor()
     engine = VigilProctorEngine()
+    audio_detector = AudioAnomalyDetector()
     db = SessionLocal()
 
     print(f"[ENGINE RUNTIME] Invigilation initialization complete for: {student_id}")
+    audio_detector.start()
 
     try:
         while cap.isOpened():
@@ -82,6 +86,7 @@ async def run_local_proctoring_loop(student_id: str):
 
                     # Propagate event details globally down real-time active websockets
                     payload = {
+                        "type": "anomaly",
                         "student_id": student_id,
                         "anomaly_type": anomaly["type"],
                         "confidence": round(anomaly["confidence"] * 100, 2),
@@ -89,11 +94,39 @@ async def run_local_proctoring_loop(student_id: str):
                     }
                     await manager.broadcast(json.dumps(payload))
 
+            # Run audio anomaly detection checks
+            audio_anomalies = audio_detector.check_for_anomaly()
+            for anomaly in audio_anomalies:
+                log_entry = AnomalyLog(
+                    student_id=student_id,
+                    anomaly_type=anomaly["type"],
+                    confidence=anomaly["confidence"]
+                )
+                db.add(log_entry)
+                db.commit()
+
+                payload = {
+                    "type": "anomaly",
+                    "student_id": student_id,
+                    "anomaly_type": anomaly["type"],
+                    "confidence": round(anomaly["confidence"] * 100, 2),
+                    "timestamp": log_entry.timestamp.strftime("%H:%M:%S")
+                }
+                await manager.broadcast(json.dumps(payload))
+
+            # Broadcast current audio level for live UI meter visualization
+            volume_payload = {
+                "type": "volume",
+                "level": audio_detector.get_current_level()
+            }
+            await manager.broadcast(json.dumps(volume_payload))
+
             await asyncio.sleep(0.03)  # Maintain standard frame rendering constraints
     except Exception as e:
         print(f"[CRITICAL ERROR] Execution failures encountered inside proctoring loop: {e}")
     finally:
         cap.release()
+        audio_detector.stop()
         db.close()
 
 @app.post("/proctor/start/{student_id}")

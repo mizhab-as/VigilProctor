@@ -5,67 +5,255 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VigilProctor AI Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: radial-gradient(circle at top right, #1e1b4b, #0f172a 60%);
+        }
+        .glow-card {
+            box-shadow: 0 0 40px -10px rgba(79, 70, 229, 0.15);
+            background: rgba(30, 41, 59, 0.45);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .glow-text-indigo {
+            text-shadow: 0 0 12px rgba(129, 140, 248, 0.4);
+        }
+        .volume-bar {
+            transition: height 0.05s ease-out, background-color 0.2s ease;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); opacity: 0.5; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+            100% { transform: scale(0.95); opacity: 0.5; }
+        }
+        .pulsing-dot {
+            animation: pulse-ring 2s infinite ease-in-out;
+        }
+        @keyframes slide-in {
+            from { transform: translateY(10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .animate-slide-in {
+            animation: slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+    </style>
 </head>
-<body class="bg-slate-900 text-slate-100 font-sans tracking-tight">
-    <nav class="border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-            <h1 class="text-xl font-bold text-indigo-400 tracking-wider">VIGILPROCTOR AI</h1>
-            <span class="px-3 py-1 text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full">SYSTEM EDGE RUNNING</span>
+<body class="text-slate-100 min-h-screen">
+    <!-- Navbar -->
+    <nav class="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur sticky top-0 z-50 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-3 h-3 bg-emerald-500 rounded-full relative">
+                    <div class="absolute -inset-1 bg-emerald-500 rounded-full pulsing-dot opacity-75"></div>
+                </div>
+                <h1 class="text-2xl font-extrabold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400 glow-text-indigo">
+                    VIGILPROCTOR AI
+                </h1>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="px-4 py-1.5 text-xs font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 rounded-full uppercase tracking-widest">
+                    Edge Proctor Engine v1.1
+                </span>
+            </div>
         </div>
     </nav>
 
-    <main class="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <!-- Configuration Control Panel -->
-        <div class="bg-slate-800/40 border border-slate-800 rounded-2xl p-6 backdrop-blur-sm">
-            <h2 class="text-lg font-bold text-slate-200 mb-4">Invigilation Control Station</h2>
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Target Student Profiler ID</label>
-                    <input type="text" id="studentId" value="MITS-CS-2026-08" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors">
+    <!-- Main Workspace -->
+    <main class="max-w-7xl mx-auto px-6 py-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Left Column: Controls & Microphonic Equalizer -->
+        <div class="space-y-8 lg:col-span-1">
+            
+            <!-- Invigilation Panel -->
+            <div class="glow-card rounded-3xl p-6 transition-all duration-300 hover:border-slate-700/50">
+                <h2 class="text-lg font-bold text-slate-200 mb-5 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    Invigilation Station
+                </h2>
+                
+                <div class="space-y-5">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2.5">Target Student ID</label>
+                        <input type="text" id="studentId" value="MITS-CS-2026-08" class="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-3 text-slate-250 font-mono text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all">
+                    </div>
+                    
+                    <button id="deployBtn" onclick="startSession()" class="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-semibold py-3.5 rounded-xl transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Deploy Local Proctoring Core
+                    </button>
                 </div>
-                <button onclick="startSession()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 rounded-xl transition-all shadow-lg shadow-indigo-600/20">
-                    Deploy Local Tracking Core
-                </button>
+            </div>
+
+            <!-- Microphonic Audio Wave Equalizer -->
+            <div class="glow-card rounded-3xl p-6 transition-all duration-300 hover:border-slate-700/50">
+                <div class="flex items-center justify-between mb-5">
+                    <h2 class="text-lg font-bold text-slate-200 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                        Acoustic Level Spectrum
+                    </h2>
+                    <span id="volumeValue" class="text-xs font-semibold font-mono text-cyan-400 bg-cyan-950/40 px-2.5 py-0.5 rounded border border-cyan-500/20">0%</span>
+                </div>
+                
+                <!-- Equalizer visualizer bars -->
+                <div class="flex items-end justify-between h-20 px-2 bg-slate-950/60 rounded-2xl py-3 border border-slate-900">
+                    <div class="volume-bar w-1.5 h-1 bg-slate-800 rounded-full" id="vbar0"></div>
+                    <div class="volume-bar w-1.5 h-1 bg-slate-800 rounded-full" id="vbar1"></div>
+                    <div class="volume-bar w-1.5 h-1 bg-slate-800 rounded-full" id="vbar2"></div>
+                    <div class="volume-bar w-1.5 h-1 bg-slate-800 rounded-full" id="vbar3"></div>
+                    <div class="volume-bar w-1.5 h-1 bg-slate-800 rounded-full" id="vbar4"></div>
+                    <div class="volume-bar w-1.5 h-1 bg-slate-800 rounded-full" id="vbar5"></div>
+                    <div class="volume-bar w-1.5 h-1 bg-slate-800 rounded-full" id="vbar6"></div>
+                    <div class="volume-bar w-1.5 h-1 bg-slate-800 rounded-full" id="vbar7"></div>
+                    <div class="volume-bar w-1.5 h-1 bg-slate-800 rounded-full" id="vbar8"></div>
+                    <div class="volume-bar w-1.5 h-1 bg-slate-800 rounded-full" id="vbar9"></div>
+                    <div class="volume-bar w-1.5 h-1 bg-slate-800 rounded-full" id="vbar10"></div>
+                    <div class="volume-bar w-1.5 h-1 bg-slate-800 rounded-full" id="vbar11"></div>
+                    <div class="volume-bar w-1.5 h-1 bg-slate-800 rounded-full" id="vbar12"></div>
+                    <div class="volume-bar w-1.5 h-1 bg-slate-800 rounded-full" id="vbar13"></div>
+                    <div class="volume-bar w-1.5 h-1 bg-slate-800 rounded-full" id="vbar14"></div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Column: Interactive Incident Stream -->
+        <div class="lg:col-span-2">
+            <div class="glow-card rounded-3xl p-6 flex flex-col h-[560px] transition-all duration-300 hover:border-slate-700/50">
+                <div class="flex items-center justify-between mb-5">
+                    <h2 class="text-lg font-bold text-slate-200 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        Telemetry Incident Matrix
+                    </h2>
+                    <span id="logCounter" class="text-xs font-semibold text-slate-400 font-mono">0 events tracked</span>
+                </div>
+                
+                <div id="logsContainer" class="flex-1 overflow-y-auto space-y-4 pr-2 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+                    <div class="text-slate-550 text-sm italic text-center py-24 flex flex-col items-center gap-3">
+                        <svg class="w-10 h-10 text-slate-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071a9 9 0 0112.14 0M1.2 8.4A15 15 0 0122.8 8.4"></path></svg>
+                        Awaiting network stream connections...
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Real-Time Anomaly Activity Telemetry Stream -->
-        <div class="lg:grid lg:col-span-2 bg-slate-800/40 border border-slate-800 rounded-2xl p-6 backdrop-blur-sm flex flex-col h-[500px]">
-            <h2 class="text-lg font-bold text-slate-200 mb-4">Active Telemetry Incident Matrix</h2>
-            <div id="logsContainer" class="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-thin">
-                <div class="text-slate-500 text-sm italic text-center py-12">Awaiting target system environment connection...</div>
-            </div>
-        </div>
     </main>
 
     <script>
         const ws = new WebSocket(`ws://${window.location.host}/ws/telemetry`);
         const logsContainer = document.getElementById('logsContainer');
+        const logCounter = document.getElementById('logCounter');
+        const volumeValue = document.getElementById('volumeValue');
+        let count = 0;
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
-            if(logsContainer.children.length === 1 && logsContainer.children[0].classList.contains('italic')) {
+            
+            // Branch logic based on message format
+            if (data.type === 'volume') {
+                updateEqualizer(data.level);
+            } else {
+                appendTelemetryAnomaly(data);
+            }
+        };
+
+        // Render vertical equalizer bars
+        function updateEqualizer(level) {
+            volumeValue.innerText = `${level}%`;
+            
+            for (let i = 0; i < 15; i++) {
+                const bar = document.getElementById(`vbar${i}`);
+                
+                // Add noise variance factor to make the equalizer look natural
+                const variance = 1 + (Math.sin(Date.now() * 0.05 + i) * 0.15);
+                const barHeight = Math.max(4, Math.min(64, (level / 100) * 60 * variance));
+                
+                bar.style.height = `${barHeight}px`;
+                
+                // Dynamic bar colors based on intensity
+                if (level > 65) {
+                    bar.style.backgroundColor = '#f43f5e'; // Rose
+                } else if (level > 35) {
+                    bar.style.backgroundColor = '#fb923c'; // Orange
+                } else {
+                    bar.style.backgroundColor = '#22d3ee'; // Cyan
+                }
+            }
+        }
+
+        // Push new anomaly logs to incident grid
+        function appendTelemetryAnomaly(data) {
+            // Remove initial connection message
+            if (logsContainer.children.length === 1 && logsContainer.children[0].classList.contains('italic')) {
                 logsContainer.innerHTML = '';
             }
+
+            count++;
+            logCounter.innerText = `${count} event${count > 1 ? 's' : ''} tracked`;
+
+            // Identify whether it's an audio anomaly or visual
+            const isAudio = data.anomaly_type.toLowerCase().includes('acoustic');
             
             const item = document.createElement('div');
-            item.className = "flex items-center justify-between p-4 bg-slate-900/60 border border-slate-800/80 rounded-xl animate-fadeIn transition-all hover:border-slate-700";
+            item.className = `flex items-center justify-between p-4 bg-slate-950/70 border rounded-2xl animate-slide-in transition-all ${
+                isAudio 
+                    ? 'border-amber-500/20 hover:border-amber-500/40 bg-gradient-to-r from-amber-500/5 to-transparent' 
+                    : 'border-rose-500/20 hover:border-rose-500/40 bg-gradient-to-r from-rose-500/5 to-transparent'
+            }`;
+            
+            const badgeClass = isAudio 
+                ? 'text-amber-400 bg-amber-500/10 border-amber-500/20' 
+                : 'text-rose-400 bg-rose-500/10 border-rose-500/20';
+
+            const typeIcon = isAudio
+                ? `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M12 18.75V5.25L7.75 9.5H4.5v5h3.25L12 18.75z"></path></svg>`
+                : `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>`;
+
             item.innerHTML = `
-                <div>
-                    <span class="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">${data.student_id}</span>
-                    <span class="text-sm font-semibold text-rose-400 ml-3">${data.anomaly_type}</span>
+                <div class="flex items-center gap-4">
+                    <span class="text-xs font-bold font-mono text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-xl border border-indigo-500/10">
+                        ${data.student_id}
+                    </span>
+                    <div class="flex items-center gap-2">
+                        <span class="p-1 rounded-lg ${badgeClass}">
+                            ${typeIcon}
+                        </span>
+                        <span class="text-sm font-semibold text-slate-100">
+                            ${data.anomaly_type}
+                        </span>
+                    </div>
                 </div>
-                <div class="text-right">
-                    <span class="text-sm font-bold text-slate-300">${data.confidence}% Conf.</span>
-                    <span class="block text-[10px] text-slate-500">${data.timestamp}</span>
+                <div class="flex items-center gap-5">
+                    <div class="text-right">
+                        <span class="text-sm font-bold text-slate-200 font-mono">${data.confidence}% Conf.</span>
+                        <span class="block text-[10px] text-slate-500 font-medium">${data.timestamp}</span>
+                    </div>
                 </div>
             `;
+            
             logsContainer.prepend(item);
-        };
+        }
 
         async function startSession() {
             const studentId = document.getElementById('studentId').value;
+            const deployBtn = document.getElementById('deployBtn');
+            
+            deployBtn.disabled = true;
+            deployBtn.innerText = "Deploying Engine...";
+            deployBtn.classList.remove('from-indigo-600', 'to-indigo-700');
+            deployBtn.classList.add('from-indigo-800', 'to-indigo-900', 'opacity-65');
+
             await fetch(`/proctor/start/${studentId}`, { method: 'POST' });
+            
+            setTimeout(() => {
+                deployBtn.innerHTML = `
+                    <svg class="w-5 h-5 text-emerald-400 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                    Invigilation Running
+                `;
+            }, 1000);
         }
     </script>
 </body>
