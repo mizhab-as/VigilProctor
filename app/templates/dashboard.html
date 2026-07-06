@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VigilProctor AI Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans tracking-tight">
+    <nav class="border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+            <h1 class="text-xl font-bold text-indigo-400 tracking-wider">VIGILPROCTOR AI</h1>
+            <span class="px-3 py-1 text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full">SYSTEM EDGE RUNNING</span>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Configuration Control Panel -->
+        <div class="bg-slate-800/40 border border-slate-800 rounded-2xl p-6 backdrop-blur-sm">
+            <h2 class="text-lg font-bold text-slate-200 mb-4">Invigilation Control Station</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Target Student Profiler ID</label>
+                    <input type="text" id="studentId" value="MITS-CS-2026-08" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors">
+                </div>
+                <button onclick="startSession()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 rounded-xl transition-all shadow-lg shadow-indigo-600/20">
+                    Deploy Local Tracking Core
+                </button>
+            </div>
+        </div>
+
+        <!-- Real-Time Anomaly Activity Telemetry Stream -->
+        <div class="lg:grid lg:col-span-2 bg-slate-800/40 border border-slate-800 rounded-2xl p-6 backdrop-blur-sm flex flex-col h-[500px]">
+            <h2 class="text-lg font-bold text-slate-200 mb-4">Active Telemetry Incident Matrix</h2>
+            <div id="logsContainer" class="flex-1 overflow-y-auto space-y-3 pr-2 scrollbar-thin">
+                <div class="text-slate-500 text-sm italic text-center py-12">Awaiting target system environment connection...</div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const ws = new WebSocket(`ws://${window.location.host}/ws/telemetry`);
+        const logsContainer = document.getElementById('logsContainer');
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if(logsContainer.children.length === 1 && logsContainer.children[0].classList.contains('italic')) {
+                logsContainer.innerHTML = '';
+            }
+            
+            const item = document.createElement('div');
+            item.className = "flex items-center justify-between p-4 bg-slate-900/60 border border-slate-800/80 rounded-xl animate-fadeIn transition-all hover:border-slate-700";
+            item.innerHTML = `
+                <div>
+                    <span class="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded">${data.student_id}</span>
+                    <span class="text-sm font-semibold text-rose-400 ml-3">${data.anomaly_type}</span>
+                </div>
+                <div class="text-right">
+                    <span class="text-sm font-bold text-slate-300">${data.confidence}% Conf.</span>
+                    <span class="block text-[10px] text-slate-500">${data.timestamp}</span>
+                </div>
+            `;
+            logsContainer.prepend(item);
+        };
+
+        async function startSession() {
+            const studentId = document.getElementById('studentId').value;
+            await fetch(`/proctor/start/${studentId}`, { method: 'POST' });
+        }
+    </script>
+</body>
+</html>
