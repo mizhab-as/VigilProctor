@@ -70,29 +70,410 @@ export default function App() {
   const webcamRef = useRef<Webcam>(null);
   const ortSessionRef = useRef<ort.InferenceSession | null>(null);
   
-  // Frame differencing tracking states in refs to avoid re-render cycles
+  // MediaPipe Face Mesh ref
+  const faceMeshRef = useRef<any>(null);
+
+  // Web Audio refs
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioAnalyserRef = useRef<AnalyserNode | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
+
+  // MediaRecorder refs for evidence highlight captures
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const videoChunksRef = useRef<Blob[]>([]);
+  const isRecordingRef = useRef(false);
+
+  // Temporal Debouncing Refs (sliding consecutive frame counters)
+  const consecutiveCheekRef = useRef(0);
+  const consecutivePitchRef = useRef(0);
+  const consecutiveGazeRef = useRef(0);
+  const consecutiveMissingRef = useRef(0);
+  const consecutiveSpeechRef = useRef(0);
+
+  // Frame differencing tracking states in refs
   const prevFrameGrayRef = useRef<Uint8Array | null>(null);
   const diffHistoryRef = useRef<number[]>([]);
 
-  // Load ONNX Model on start
-  const loadONNXModel = async () => {
+  // Load ONNX Model and Setup MediaPipe on start
+  const initializeEngines = async () => {
     try {
       setModelLoading(true);
       console.log("[ort] Loading model.onnx...");
-      // Fetch model from public folder
       const session = await ort.InferenceSession.create("/model.onnx");
       ortSessionRef.current = session;
       console.log("[ort] Model loaded successfully.");
+
+      // Setup MediaPipe Face Mesh from window object (CDN)
+      const FaceMesh = (window as any).FaceMesh;
+      if (FaceMesh) {
+        console.log("[MediaPipe] Initializing FaceMesh...");
+        const faceMesh = new FaceMesh({
+          locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+        });
+
+        faceMesh.setOptions({
+          maxNumFaces: 1,
+          refineLandmarks: true, // required for iris tracking
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5
+        });
+
+        faceMesh.onResults(onFaceMeshResults);
+        faceMeshRef.current = faceMesh;
+        console.log("[MediaPipe] FaceMesh configuration completed.");
+      } else {
+        console.warn("[MediaPipe] FaceMesh script is not loaded from CDN.");
+      }
     } catch (err) {
-      console.error("[ort] Error loading model:", err);
+      console.error("[ort/MediaPipe] Engine initialization failed:", err);
     } finally {
       setModelLoading(false);
     }
   };
 
   useEffect(() => {
-    loadONNXModel();
+    initializeEngines();
+    return () => {
+      if (faceMeshRef.current) {
+        faceMeshRef.current.close();
+      }
+      stopAudioAnalysis();
+    };
   }, []);
+
+  // Web Audio capture starter
+  const startAudioAnalysis = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioStreamRef.current = stream;
+
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const audioCtx = new AudioContextClass();
+      audioContextRef.current = audioCtx;
+
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 1024;
+      audioAnalyserRef.current = analyser;
+
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(analyser);
+
+      console.log("[AUDIO] Microphone input capture node active.");
+    } catch (err) {
+      console.error("[AUDIO] Error accessing default microphone:", err);
+    }
+  };
+
+  // Rolling media recorder for video + audio
+  const startVideoRecording = () => {
+    if (!webcamRef.current || !webcamRef.current.stream) return;
+    try {
+      const videoStream = webcamRef.current.stream;
+      const tracks = [...videoStream.getVideoTracks()];
+      
+      // Append microphone track if available
+      if (audioStreamRef.current) {
+        tracks.push(...audioStreamRef.current.getAudioTracks());
+      }
+      
+      const combinedStream = new MediaStream(tracks);
+      
+      // Try preferred codecs, default fallback to browser standard
+      let options = { mimeType: "video/webm;codecs=vp8,opus" };
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: "video/webm" };
+      }
+      
+      const recorder = new MediaRecorder(combinedStream, options);
+      videoChunksRef.current = [];
+      
+      recorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          videoChunksRef.current.push(event.data);
+          // Retain the last ~6-7 seconds in the rolling buffer
+          if (videoChunksRef.current.length > 7) {
+            videoChunksRef.current.shift();
+          }
+        }
+      };
+
+      recorder.start(1000); // 1-second chunks
+      mediaRecorderRef.current = recorder;
+      isRecordingRef.current = true;
+      console.log("[RECORDER] Rolling 5-second evidence highlight capture active.");
+    } catch (err) {
+      console.error("[RECORDER] MediaRecorder initialization failed:", err);
+    }
+  };
+
+  // Upload highlight clip REST call
+  const uploadEvidenceClip = async (alertId: number) => {
+    if (videoChunksRef.current.length === 0) {
+      console.warn("[RECORDER] Evidence buffer is empty. Skipping upload.");
+      return;
+    }
+
+    const blob = new Blob(videoChunksRef.current, { type: "video/webm" });
+    const file = new File([blob], "evidence.webm", { type: "video/webm" });
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      console.log(`[RECORDER] Uploading evidence clip for alert ${alertId}...`);
+      const response = await fetch(`http://localhost:8000/session/${sessionId}/alert/${alertId}/video`, {
+        method: "POST",
+        body: formData
+      });
+      if (response.ok) {
+        console.log(`[RECORDER] Evidence clip uploaded successfully.`);
+      } else {
+        console.error("[RECORDER] Evidence upload failed:", await response.text());
+      }
+    } catch (err) {
+      console.error("[RECORDER] Evidence upload request crashed:", err);
+    }
+  };
+
+  // Web Audio and MediaRecorder capture terminator
+  const stopAudioAnalysis = () => {
+    if (mediaRecorderRef.current) {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (e) {}
+      mediaRecorderRef.current = null;
+    }
+    isRecordingRef.current = false;
+    videoChunksRef.current = [];
+
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((track) => track.stop());
+      audioStreamRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    audioAnalyserRef.current = null;
+  };
+
+  // Callback triggered when MediaPipe Face Mesh evaluates landmarks
+  const onFaceMeshResults = useCallback(async (results: any) => {
+    if (!sessionStarted || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+    // A. Validate Face Visibility with Debouncing
+    if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
+      consecutiveMissingRef.current += 1;
+      if (consecutiveMissingRef.current >= 3) { // 3 consecutive seconds
+        console.warn("[PROCTOR] Face not visible for 3 seconds!");
+        ws.send(
+          JSON.stringify({
+            type: "anomaly",
+            anomaly_type: "Interface Violation (Face Missing)",
+            confidence: 1.0,
+            frame: webcamRef.current?.getScreenshot() || null
+          })
+        );
+        setWarnings((prev) => ["Security Warning: Face missing from webcam frame!", ...prev.slice(0, 4)]);
+      }
+      return;
+    } else {
+      consecutiveMissingRef.current = 0;
+    }
+
+    const landmarks = results.multiFaceLandmarks[0];
+
+    // B. Head Pose Estimation (Yaw & Pitch)
+    const leftCheek = landmarks[234];
+    const rightCheek = landmarks[454];
+    const noseTip = landmarks[4];
+    const forehead = landmarks[10];
+    const chin = landmarks[152];
+
+    // Horizontal yaw ratio
+    const distLeft = Math.abs(noseTip.x - leftCheek.x);
+    const distRight = Math.abs(noseTip.x - rightCheek.x);
+    const horizontalRatio = distLeft / (distRight + 1e-6);
+
+    // Vertical pitch ratio
+    const distUpper = Math.abs(forehead.y - noseTip.y);
+    const distLower = Math.abs(chin.y - noseTip.y);
+    const verticalRatio = distUpper / (distLower + 1e-6);
+
+    let headViolation = false;
+    let headLabel = "";
+
+    // Debounce yaw movements (left/right)
+    if (horizontalRatio < 0.55 || horizontalRatio > 1.8) {
+      consecutiveCheekRef.current += 1;
+      if (consecutiveCheekRef.current >= 3) {
+        headViolation = true;
+        headLabel = "Suspicious Head Movement (Yaw Deviation)";
+      }
+    } else {
+      consecutiveCheekRef.current = 0;
+    }
+
+    // Debounce pitch movements (up/down)
+    if (verticalRatio < 0.55 || verticalRatio > 1.7) {
+      consecutivePitchRef.current += 1;
+      if (consecutivePitchRef.current >= 3) {
+        headViolation = true;
+        headLabel = "Suspicious Head Movement (Pitch Deviation)";
+      }
+    } else {
+      consecutivePitchRef.current = 0;
+    }
+
+    // C. Eye Gaze Iris Drift Tracking with Debouncing
+    const leftIris = landmarks[468];
+    const rightIris = landmarks[473];
+    const leftEyeOuter = landmarks[33];
+    const leftEyeInner = landmarks[133];
+    const rightEyeInner = landmarks[362];
+    const rightEyeOuter = landmarks[263];
+
+    const leftEyeWidth = Math.abs(leftEyeInner.x - leftEyeOuter.x);
+    const leftGazeIndex = (leftIris.x - Math.min(leftEyeOuter.x, leftEyeInner.x)) / (leftEyeWidth + 1e-6);
+
+    const rightEyeWidth = Math.abs(rightEyeOuter.x - rightEyeInner.x);
+    const rightGazeIndex = (rightIris.x - Math.min(rightEyeInner.x, rightEyeOuter.x)) / (rightEyeWidth + 1e-6);
+
+    let gazeViolation = false;
+    if (leftGazeIndex < 0.25 || leftGazeIndex > 0.75 || rightGazeIndex < 0.25 || rightGazeIndex > 0.75) {
+      consecutiveGazeRef.current += 1;
+      if (consecutiveGazeRef.current >= 3) {
+        gazeViolation = true;
+      }
+    } else {
+      consecutiveGazeRef.current = 0;
+    }
+
+    // D. Visual CNN Classification (Device / Person detections)
+    const video = webcamRef.current?.video;
+    if (!video) return;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = 224;
+    canvas.height = 224;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.drawImage(video, 0, 0, 224, 224);
+    const imgData = ctx.getImageData(0, 0, 224, 224);
+    const data = imgData.data;
+
+    // Motion checks (client-side frame differencing)
+    let isKeyframe = false;
+    const prevGray = prevFrameGrayRef.current;
+    
+    // Grayscale mapping for diffing
+    const gray = new Uint8Array(224 * 224);
+    for (let i = 0; i < data.length; i += 4) {
+      gray[i / 4] = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+    }
+
+    if (prevGray === null) {
+      isKeyframe = true;
+    } else {
+      let sumDiff = 0;
+      for (let i = 0; i < gray.length; i++) {
+        sumDiff += Math.abs(gray[i] - prevGray[i]);
+      }
+      const avgDiff = sumDiff / gray.length;
+
+      let threshold = 5.0;
+      const history = diffHistoryRef.current;
+      if (history.length >= 5) {
+        const mean = history.reduce((a, b) => a + b, 0) / history.length;
+        const variance = history.reduce((a, Math.pow) => a + Math.pow(Math.pow - mean, 2), 0) / history.length;
+        const std = Math.sqrt(variance);
+        threshold = mean + std;
+      }
+
+      if (avgDiff > threshold) {
+        isKeyframe = true;
+      }
+
+      history.push(avgDiff);
+      if (history.length > 30) {
+        history.shift();
+      }
+    }
+    prevFrameGrayRef.current = gray;
+
+    let cnnViolation = false;
+    let cnnLabel = "";
+    let cnnConfidence = 0.0;
+
+    if (isKeyframe && ortSessionRef.current) {
+      const floatData = new Float32Array(3 * 224 * 224);
+      const rOffset = 0;
+      const gOffset = 224 * 224;
+      const bOffset = 2 * 224 * 224;
+
+      for (let i = 0; i < data.length; i += 4) {
+        const pixelIdx = i / 4;
+        floatData[rOffset + pixelIdx] = data[i] / 255.0;
+        floatData[gOffset + pixelIdx] = data[i + 1] / 255.0;
+        floatData[bOffset + pixelIdx] = data[i + 2] / 255.0;
+      }
+
+      const inputTensor = new ort.Tensor("float32", floatData, [1, 3, 224, 224]);
+
+      try {
+        const results = await ortSessionRef.current.run({ input: inputTensor });
+        const outputTensor = results.output;
+        const outputData = outputTensor.data as Float32Array;
+
+        let classId = 0;
+        let maxVal = -Infinity;
+        for (let i = 0; i < outputData.length; i++) {
+          if (outputData[i] > maxVal) {
+            maxVal = outputData[i];
+            classId = i;
+          }
+        }
+
+        if (classId > 0) {
+          cnnViolation = true;
+          cnnLabel = CLASS_LABELS[classId];
+          cnnConfidence = maxVal;
+        }
+      } catch (ortErr) {
+        console.error("[ort] CNN evaluate failed:", ortErr);
+      }
+    }
+
+    // E. Resolve Trigger Priority
+    let alertType = "";
+    let confidence = 0.0;
+
+    if (cnnViolation) {
+      alertType = cnnLabel;
+      confidence = cnnConfidence;
+    } else if (headViolation) {
+      alertType = headLabel;
+      confidence = 0.85;
+    } else if (gazeViolation) {
+      alertType = "Gaze Deviation (Looking Off-Screen)";
+      confidence = 0.80;
+    }
+
+    if (alertType) {
+      const screenshot = webcamRef.current.getScreenshot();
+      if (screenshot) {
+        ws.send(
+          JSON.stringify({
+            type: "anomaly",
+            anomaly_type: alertType,
+            confidence: confidence,
+            frame: screenshot
+          })
+        );
+      }
+    }
+  }, [sessionStarted, ws]);
 
   // Handle start session API and WS setup
   const startExam = async (e: React.FormEvent) => {
@@ -114,6 +495,14 @@ export default function App() {
       setSessionId(data.session_id);
       setSessionStarted(true);
 
+      // Start client Web Audio analysis
+      await startAudioAnalysis();
+      
+      // Start rolling video evidence recording once tracks are active
+      setTimeout(() => {
+        startVideoRecording();
+      }, 1000);
+
       // Create WebSocket connection
       const socket = new WebSocket(`ws://localhost:8000/session/${data.session_id}/stream`);
       
@@ -125,6 +514,9 @@ export default function App() {
         const msg = JSON.parse(event.data);
         if (msg.type === "warning") {
           setWarnings((prev) => [msg.message, ...prev.slice(0, 4)]);
+        } else if (msg.type === "alert_confirmation") {
+          // Upload highlight clip matching this specific confirmation
+          uploadEvidenceClip(msg.alert_id);
         }
       };
 
@@ -137,6 +529,7 @@ export default function App() {
 
   // Handle submit exam API and WS closure
   const submitExam = useCallback(async () => {
+    stopAudioAnalysis();
     if (ws) {
       ws.close();
     }
@@ -156,138 +549,91 @@ export default function App() {
     diffHistoryRef.current = [];
   }, [ws, sessionId]);
 
-  // Execute client-side keyframe selection + inference
+  // Client-side video frame capture
   const captureAndEvaluate = useCallback(async () => {
-    if (!webcamRef.current || !ortSessionRef.current || !ws || ws.readyState !== WebSocket.OPEN) return;
+    if (!webcamRef.current || !ws || ws.readyState !== WebSocket.OPEN) return;
 
-    const screenshot = webcamRef.current.getScreenshot();
-    if (!screenshot) return;
-
-    // Load base64 screenshot into Image object for pixel manipulations
-    const img = new Image();
-    img.onload = async () => {
-      // 1. Preprocess: Create an offscreen canvas at 224x224
-      const canvas = document.createElement("canvas");
-      canvas.width = 224;
-      canvas.height = 224;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      // Draw and scale screenshot to canvas
-      ctx.drawImage(img, 0, 0, 224, 224);
-      const imgData = ctx.getImageData(0, 0, 224, 224);
-      const data = imgData.data;
-
-      // 2. Grayscale Conversion (gray = 0.299R + 0.587G + 0.114B)
-      const gray = new Uint8Array(224 * 224);
-      for (let i = 0; i < data.length; i += 4) {
-        gray[i / 4] = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
-      }
-
-      // 3. Motion Frame Differencing check
-      let isKeyframe = false;
-      const prevGray = prevFrameGrayRef.current;
-
-      if (prevGray === null) {
-        // Initial frame is always a keyframe
-        isKeyframe = true;
-      } else {
-        // Calculate mean absolute differences
-        let sumDiff = 0;
-        for (let i = 0; i < gray.length; i++) {
-          sumDiff += Math.abs(gray[i] - prevGray[i]);
-        }
-        const avgDiff = sumDiff / gray.length;
-
-        // Dynamic thresholding T = mean + std
-        let threshold = 5.0; // fallback
-        const history = diffHistoryRef.current;
-        if (history.length >= 5) {
-          const mean = history.reduce((a, b) => a + b, 0) / history.length;
-          const variance = history.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / history.length;
-          const std = Math.sqrt(variance);
-          threshold = mean + std;
-        }
-
-        if (avgDiff > threshold) {
-          isKeyframe = true;
-        }
-
-        // Maintain rolling history
-        history.push(avgDiff);
-        if (history.length > 30) {
-          history.shift();
-        }
-      }
-
-      // Update ref
-      prevFrameGrayRef.current = gray;
-
-      // 4. If keyframe, run local ONNX Inference
-      if (isKeyframe) {
-        console.log("[ort] Keyframe detected. Running client-side model evaluation...");
-        
-        // Prepare channels-first inputs: [1, 3, 224, 224] normalized to [0, 1]
-        const floatData = new Float32Array(3 * 224 * 224);
-        const rOffset = 0;
-        const gOffset = 224 * 224;
-        const bOffset = 2 * 224 * 224;
-
-        for (let i = 0; i < data.length; i += 4) {
-          const pixelIdx = i / 4;
-          floatData[rOffset + pixelIdx] = data[i] / 255.0;     // Red
-          floatData[gOffset + pixelIdx] = data[i + 1] / 255.0; // Green
-          floatData[bOffset + pixelIdx] = data[i + 2] / 255.0; // Blue
-        }
-
-        const inputTensor = new ort.Tensor("float32", floatData, [1, 3, 224, 224]);
-
-        try {
-          const results = await ortSessionRef.current.run({ input: inputTensor });
-          const outputTensor = results.output;
-          const outputData = outputTensor.data as Float32Array;
-
-          // Find class index with max probability
-          let classId = 0;
-          let maxVal = -Infinity;
-          for (let i = 0; i < outputData.length; i++) {
-            if (outputData[i] > maxVal) {
-              maxVal = outputData[i];
-              classId = i;
-            }
-          }
-
-          const label = CLASS_LABELS[classId] || "Normal";
-          console.log(`[ort] Classification Result: ${label} (${(maxVal * 100).toFixed(1)}% Conf.)`);
-
-          // 5. If ANOMALOUS (classId > 0), transmit metadata + thumbnail payload
-          if (classId > 0) {
-            ws.send(
-              JSON.stringify({
-                type: "anomaly",
-                anomaly_type: label,
-                confidence: maxVal,
-                frame: screenshot
-              })
-            );
-          }
-        } catch (inferenceErr) {
-          console.error("[ort] Inference execution error:", inferenceErr);
-        }
-      }
-    };
-    img.src = screenshot;
+    const video = webcamRef.current.video;
+    if (video && video.readyState === 4 && faceMeshRef.current) {
+      // Send video element to MediaPipe Face Mesh. Results will trigger onFaceMeshResults.
+      await faceMeshRef.current.send({ image: video });
+    }
   }, [ws]);
 
-  // Capturing frame loop
+  // Client-side audio check with debouncing
+  const analyzeAudio = useCallback(() => {
+    if (!audioAnalyserRef.current || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+    const analyser = audioAnalyserRef.current;
+    const bufferLength = analyser.frequencyBinCount;
+    
+    // RMS volume estimation
+    const timeData = new Uint8Array(bufferLength);
+    analyser.getByteTimeDomainData(timeData);
+
+    let sumSquares = 0;
+    for (let i = 0; i < timeData.length; i++) {
+      const val = (timeData[i] - 128) / 128.0;
+      sumSquares += val * val;
+    }
+    const rms = Math.sqrt(sumSquares / timeData.length);
+
+    // Whisper/Speech threshold
+    if (rms > 0.02) {
+      const dataArray = new Uint8Array(bufferLength);
+      analyser.getByteFrequencyData(dataArray);
+
+      const sampleRate = audioContextRef.current?.sampleRate || 44100;
+      const fftSize = analyser.fftSize;
+
+      let voiceEnergy = 0;
+      let totalEnergy = 0;
+
+      for (let i = 0; i < dataArray.length; i++) {
+        const freq = (i * sampleRate) / fftSize;
+        const energy = dataArray[i] * dataArray[i];
+        totalEnergy += energy;
+        
+        if (freq >= 300 && freq <= 3000) {
+          voiceEnergy += energy;
+        }
+      }
+
+      const speechRatio = voiceEnergy / (totalEnergy + 1e-6);
+
+      if (speechRatio > 0.40) {
+        consecutiveSpeechRef.current += 1;
+        if (consecutiveSpeechRef.current >= 2) { // 2 consecutive seconds
+          console.log(`[AUDIO] Acoustic Violation flagged: Speech concentration ratio ${(speechRatio * 100).toFixed(1)}%`);
+          const confidence = Math.min(0.60 + (rms - 0.02) * 4 + speechRatio * 0.2, 0.99);
+
+          ws.send(
+            JSON.stringify({
+              type: "anomaly",
+              anomaly_type: "Acoustic Violation (Speech/Whispering)",
+              confidence: confidence,
+              frame: null
+            })
+          );
+        }
+      } else {
+        consecutiveSpeechRef.current = 0;
+      }
+    } else {
+      consecutiveSpeechRef.current = 0;
+    }
+  }, [ws]);
+
+  // Main 1-second capture loop
   useEffect(() => {
     if (!sessionStarted || !ws) return;
     const timer = setInterval(() => {
       captureAndEvaluate();
+      analyzeAudio();
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [sessionStarted, ws, captureAndEvaluate]);
+  }, [sessionStarted, ws, captureAndEvaluate, analyzeAudio]);
 
   // Countdown timer
   useEffect(() => {
@@ -401,7 +747,7 @@ export default function App() {
                 Secure Student Portal
               </h2>
               <p className="text-slate-400 text-xs leading-relaxed">
-                ExamGuard AI uses browser-side ONNX Runtime edge inference to analyze keyframes locally for compliance and privacy.
+                ExamGuard AI runs multi-modal edge tracking (face landmarks, eye gazes, whispering frequency) natively inside your browser.
               </p>
             </div>
 
@@ -422,21 +768,30 @@ export default function App() {
 
               <div className="p-4 bg-slate-900/50 border border-slate-800/80 rounded-xl space-y-3">
                 <h4 className="text-xs font-bold text-slate-300 flex items-center gap-1.5 uppercase tracking-wide">
-                  <Camera className="w-4 h-4 text-cyan-400" /> Edge Proctor Status
+                  <Camera className="w-4 h-4 text-cyan-400" /> Sensor Status
                 </h4>
-                <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                <div className="text-[10px] text-slate-400 flex justify-between">
                   <span>Local ONNX Engine:</span>
                   {modelLoading ? (
-                    <span className="text-amber-400 font-bold animate-pulse">LOADING MODEL...</span>
+                    <span className="text-amber-400 font-bold animate-pulse">LOADING...</span>
                   ) : ortSessionRef.current ? (
-                    <span className="text-emerald-400 font-bold">READY (ON-DEVICE)</span>
+                    <span className="text-emerald-400 font-bold">READY</span>
                   ) : (
-                    <span className="text-rose-500 font-bold">MODEL OFFLINE</span>
+                    <span className="text-rose-500 font-bold">OFFLINE</span>
                   )}
                 </div>
-                <ul className="text-[10px] text-slate-400 space-y-1 list-disc pl-4 border-t border-slate-900/60 pt-2">
-                  <li>Local inference respects your privacy—no normal frames leave this device.</li>
-                  <li>Ensure your webcam remains activated throughout the test.</li>
+                <div className="text-[10px] text-slate-400 flex justify-between">
+                  <span>MediaPipe FaceMesh:</span>
+                  {faceMeshRef.current ? (
+                    <span className="text-emerald-400 font-bold">LOADED (CDN)</span>
+                  ) : (
+                    <span className="text-rose-500 font-bold">NOT LOADED</span>
+                  )}
+                </div>
+                <ul className="text-[10px] text-slate-450 space-y-1 list-disc pl-4 border-t border-slate-900/60 pt-2">
+                  <li>Please enable both Camera and Microphone permissions.</li>
+                  <li>Temporal debouncing filters out transient shifts.</li>
+                  <li>Violations trigger automatic 5-second video highlights.</li>
                 </ul>
               </div>
 
@@ -543,7 +898,7 @@ export default function App() {
                     className={`w-full text-left px-5 py-4 rounded-2xl border text-xs font-medium transition-all flex items-center justify-between ${
                       isSelected
                         ? "bg-indigo-500/10 border-indigo-500 text-indigo-200"
-                        : "bg-slate-950/40 border-slate-850 hover:bg-slate-900 text-slate-300"
+                        : "bg-slate-950/40 border-slate-855 hover:bg-slate-900 text-slate-300"
                     }`}
                   >
                     <span>{opt}</span>
@@ -614,35 +969,35 @@ export default function App() {
                 className="w-full h-full object-cover transform scale-x-[-1]"
               />
               <div className="absolute bottom-3 left-3 bg-slate-950/80 border border-slate-800/80 px-2 py-0.5 rounded text-[9px] font-mono text-slate-400 font-bold uppercase tracking-wider">
-                1 FPS edge analysis
+                Rolling recording
               </div>
             </div>
             
             <p className="text-[10px] text-slate-400 leading-normal bg-slate-900/50 border border-slate-855 p-3 rounded-xl">
-              Webcam images are preprocessed to Float32 input arrays and evaluated locally by ONNX. Frame telemetry is sent to the FastAPI server only when anomalies are classified.
+              ExamGuard AI performs pupil-mesh, head pose Euler estimation, and speech frequency FFT locally inside Web Assembly. Telemetry details are streamed only when security events are triggered.
             </p>
           </div>
 
           {/* Quick Stats Panel */}
           <div className="glass-panel rounded-3xl p-5 space-y-3 font-mono text-[10px] text-slate-400 leading-loose shadow-xl">
-            <h5 className="font-sans font-bold text-xs text-slate-350 uppercase tracking-wide mb-1">
+            <h5 className="font-sans font-bold text-xs text-slate-355 uppercase tracking-wide mb-1">
               On-Device Metrics
             </h5>
             <div className="flex justify-between border-b border-slate-900 pb-1.5">
               <span>Status:</span>
-              <span className="text-emerald-400 font-bold font-sans">EDGE_INFERENCE_ACTIVE</span>
+              <span className="text-emerald-400 font-bold font-sans">DEBOUNCED_RECORDING</span>
             </div>
             <div className="flex justify-between border-b border-slate-900 pb-1.5">
-              <span>Runtime Engine:</span>
-              <span>ONNX Runtime Web</span>
+              <span>Audio Model:</span>
+              <span>FFT Speech Band Filter</span>
             </div>
             <div className="flex justify-between border-b border-slate-900 pb-1.5">
-              <span>Inference Device:</span>
-              <span>WebGPU / WASM</span>
+              <span>Video Models:</span>
+              <span>FaceMesh (CDN) + CNN (ONNX)</span>
             </div>
             <div className="flex justify-between">
-              <span>CNN Weights:</span>
-              <span>Placeholder (27 KB ONNX)</span>
+              <span>Evidence Highlight:</span>
+              <span>5-Second WebM Clips</span>
             </div>
           </div>
         </section>

@@ -3,7 +3,7 @@ import uuid
 import base64
 import json
 from datetime import datetime
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -17,8 +17,10 @@ from app.database.models import init_db, SessionLocal, ExamSession, SessionAlert
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data"))
 FRAMES_DIR = os.path.join(DATA_DIR, "frames")
 THUMBNAILS_DIR = os.path.join(DATA_DIR, "thumbnails")
+CLIPS_DIR = os.path.join(DATA_DIR, "clips")
 os.makedirs(FRAMES_DIR, exist_ok=True)
 os.makedirs(THUMBNAILS_DIR, exist_ok=True)
+os.makedirs(CLIPS_DIR, exist_ok=True)
 
 app = FastAPI(title="ExamGuard AI - Online Proctoring Engine")
 
@@ -199,7 +201,8 @@ def get_session_report(session_id: str, db: Session = Depends(get_db)):
             "anomaly_type": a.anomaly_type,
             "confidence": a.confidence,
             "frame_path": a.frame_path,
-            "thumbnail_path": a.thumbnail_path
+            "thumbnail_path": a.thumbnail_path,
+            "video_clip_path": a.video_clip_path
         })
         
         # Simple format for chart plotting: timestamp in seconds relative to start time
@@ -285,6 +288,7 @@ async def student_stream(websocket: WebSocket, session_id: str, db: Session = De
                 # Construct dashboard notification
                 alert_payload = {
                     "type": "alert",
+                    "id": new_alert.id,
                     "session_id": session_id,
                     "student_id": session.student_id,
                     "anomaly_type": label,
@@ -295,10 +299,15 @@ async def student_stream(websocket: WebSocket, session_id: str, db: Session = De
                 }
                 await manager.broadcast_to_dashboards(alert_payload)
 
-                # Send warnings back to student UI
+                # Send warnings and confirmation back to student UI
                 await websocket.send_json({
                     "type": "warning",
                     "message": f"Suspicious Activity Detected: {label}. Please remain focused on the exam."
+                })
+                await websocket.send_json({
+                    "type": "alert_confirmation",
+                    "alert_id": new_alert.id,
+                    "anomaly_type": label
                 })
 
             elif msg_type == "visibility_change":
@@ -318,6 +327,7 @@ async def student_stream(websocket: WebSocket, session_id: str, db: Session = De
 
                     alert_payload = {
                         "type": "alert",
+                        "id": new_alert.id,
                         "session_id": session_id,
                         "student_id": session.student_id,
                         "anomaly_type": "Interface Violation (Tab Switch)",
@@ -349,3 +359,34 @@ async def dashboard_alerts(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect_dashboard(websocket)
+
+@app.post("/session/{session_id}/alert/{alert_id}/video")
+async def upload_anomaly_video(session_id: str, alert_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+    alert = db.query(SessionAlert).filter(SessionAlert.session_id == session_id, SessionAlert.id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert record not found")
+
+    file_ext = os.path.splitext(file.filename)[1] or ".webm"
+    video_filename = f"{session_id}_{alert_id}_evidence{file_ext}"
+    video_path_abs = os.path.join(CLIPS_DIR, video_filename)
+
+    try:
+        content = await file.read()
+        with open(video_path_abs, "wb") as buffer:
+            buffer.write(content)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save video: {e}")
+
+    alert.video_clip_path = f"/static/clips/{video_filename}"
+    db.commit()
+
+    # Notify dashboards about the video clip update
+    clip_payload = {
+        "type": "video_update",
+        "session_id": session_id,
+        "alert_id": alert_id,
+        "video_clip_path": alert.video_clip_path
+    }
+    await manager.broadcast_to_dashboards(clip_payload)
+
+    return {"status": "success", "video_clip_path": alert.video_clip_path}
