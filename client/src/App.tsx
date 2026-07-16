@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Webcam from "react-webcam";
-import { Camera, AlertTriangle, ShieldCheck, Clock, Award, EyeOff, CheckCircle } from "lucide-react";
+import * as ort from "onnxruntime-web";
+import { Camera, AlertTriangle, ShieldCheck, Clock, CheckCircle } from "lucide-react";
 
 interface Question {
   id: number;
@@ -46,6 +47,14 @@ const MOCK_QUESTIONS: Question[] = [
   }
 ];
 
+const CLASS_LABELS: Record<number, string> = {
+  0: "Normal",
+  1: "External Device",
+  2: "Head Movement",
+  3: "Multiple Persons",
+  4: "Talking to Others"
+};
+
 export default function App() {
   const [studentId, setStudentId] = useState("");
   const [sessionStarted, setSessionStarted] = useState(false);
@@ -56,8 +65,34 @@ export default function App() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [examSubmitted, setExamSubmitted] = useState(false);
+  const [modelLoading, setModelLoading] = useState(false);
 
   const webcamRef = useRef<Webcam>(null);
+  const ortSessionRef = useRef<ort.InferenceSession | null>(null);
+  
+  // Frame differencing tracking states in refs to avoid re-render cycles
+  const prevFrameGrayRef = useRef<Uint8Array | null>(null);
+  const diffHistoryRef = useRef<number[]>([]);
+
+  // Load ONNX Model on start
+  const loadONNXModel = async () => {
+    try {
+      setModelLoading(true);
+      console.log("[ort] Loading model.onnx...");
+      // Fetch model from public folder
+      const session = await ort.InferenceSession.create("/model.onnx");
+      ortSessionRef.current = session;
+      console.log("[ort] Model loaded successfully.");
+    } catch (err) {
+      console.error("[ort] Error loading model:", err);
+    } finally {
+      setModelLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadONNXModel();
+  }, []);
 
   // Handle start session API and WS setup
   const startExam = async (e: React.FormEvent) => {
@@ -93,13 +128,9 @@ export default function App() {
         }
       };
 
-      socket.onclose = () => {
-        console.log("[STUDENT CLIENT] Stream WS closed.");
-      };
-
       setWs(socket);
     } catch (err) {
-      alert("Failed to initialize session. Please check that the backend is running at port 8000.");
+      alert("Failed to initialize session. Please check that backend is running at port 8000.");
       console.error(err);
     }
   };
@@ -120,32 +151,143 @@ export default function App() {
     }
     setSessionStarted(false);
     setExamSubmitted(true);
+    // Reset motion states
+    prevFrameGrayRef.current = null;
+    diffHistoryRef.current = [];
   }, [ws, sessionId]);
 
-  // Capture frame and stream to backend
-  const captureAndStream = useCallback(() => {
-    if (webcamRef.current && ws && ws.readyState === WebSocket.OPEN) {
-      const screenshot = webcamRef.current.getScreenshot();
-      if (screenshot) {
-        ws.send(
-          JSON.stringify({
-            type: "frame",
-            frame: screenshot
-          })
-        );
+  // Execute client-side keyframe selection + inference
+  const captureAndEvaluate = useCallback(async () => {
+    if (!webcamRef.current || !ortSessionRef.current || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+    const screenshot = webcamRef.current.getScreenshot();
+    if (!screenshot) return;
+
+    // Load base64 screenshot into Image object for pixel manipulations
+    const img = new Image();
+    img.onload = async () => {
+      // 1. Preprocess: Create an offscreen canvas at 224x224
+      const canvas = document.createElement("canvas");
+      canvas.width = 224;
+      canvas.height = 224;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      // Draw and scale screenshot to canvas
+      ctx.drawImage(img, 0, 0, 224, 224);
+      const imgData = ctx.getImageData(0, 0, 224, 224);
+      const data = imgData.data;
+
+      // 2. Grayscale Conversion (gray = 0.299R + 0.587G + 0.114B)
+      const gray = new Uint8Array(224 * 224);
+      for (let i = 0; i < data.length; i += 4) {
+        gray[i / 4] = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
       }
-    }
+
+      // 3. Motion Frame Differencing check
+      let isKeyframe = false;
+      const prevGray = prevFrameGrayRef.current;
+
+      if (prevGray === null) {
+        // Initial frame is always a keyframe
+        isKeyframe = true;
+      } else {
+        // Calculate mean absolute differences
+        let sumDiff = 0;
+        for (let i = 0; i < gray.length; i++) {
+          sumDiff += Math.abs(gray[i] - prevGray[i]);
+        }
+        const avgDiff = sumDiff / gray.length;
+
+        // Dynamic thresholding T = mean + std
+        let threshold = 5.0; // fallback
+        const history = diffHistoryRef.current;
+        if (history.length >= 5) {
+          const mean = history.reduce((a, b) => a + b, 0) / history.length;
+          const variance = history.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / history.length;
+          const std = Math.sqrt(variance);
+          threshold = mean + std;
+        }
+
+        if (avgDiff > threshold) {
+          isKeyframe = true;
+        }
+
+        // Maintain rolling history
+        history.push(avgDiff);
+        if (history.length > 30) {
+          history.shift();
+        }
+      }
+
+      // Update ref
+      prevFrameGrayRef.current = gray;
+
+      // 4. If keyframe, run local ONNX Inference
+      if (isKeyframe) {
+        console.log("[ort] Keyframe detected. Running client-side model evaluation...");
+        
+        // Prepare channels-first inputs: [1, 3, 224, 224] normalized to [0, 1]
+        const floatData = new Float32Array(3 * 224 * 224);
+        const rOffset = 0;
+        const gOffset = 224 * 224;
+        const bOffset = 2 * 224 * 224;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const pixelIdx = i / 4;
+          floatData[rOffset + pixelIdx] = data[i] / 255.0;     // Red
+          floatData[gOffset + pixelIdx] = data[i + 1] / 255.0; // Green
+          floatData[bOffset + pixelIdx] = data[i + 2] / 255.0; // Blue
+        }
+
+        const inputTensor = new ort.Tensor("float32", floatData, [1, 3, 224, 224]);
+
+        try {
+          const results = await ortSessionRef.current.run({ input: inputTensor });
+          const outputTensor = results.output;
+          const outputData = outputTensor.data as Float32Array;
+
+          // Find class index with max probability
+          let classId = 0;
+          let maxVal = -Infinity;
+          for (let i = 0; i < outputData.length; i++) {
+            if (outputData[i] > maxVal) {
+              maxVal = outputData[i];
+              classId = i;
+            }
+          }
+
+          const label = CLASS_LABELS[classId] || "Normal";
+          console.log(`[ort] Classification Result: ${label} (${(maxVal * 100).toFixed(1)}% Conf.)`);
+
+          // 5. If ANOMALOUS (classId > 0), transmit metadata + thumbnail payload
+          if (classId > 0) {
+            ws.send(
+              JSON.stringify({
+                type: "anomaly",
+                anomaly_type: label,
+                confidence: maxVal,
+                frame: screenshot
+              })
+            );
+          }
+        } catch (inferenceErr) {
+          console.error("[ort] Inference execution error:", inferenceErr);
+        }
+      }
+    };
+    img.src = screenshot;
   }, [ws]);
 
   // Capturing frame loop
   useEffect(() => {
     if (!sessionStarted || !ws) return;
     const timer = setInterval(() => {
-      captureAndStream();
+      captureAndEvaluate();
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [sessionStarted, ws, captureAndStream]);
+  }, [sessionStarted, ws, captureAndEvaluate]);
 
   // Countdown timer
   useEffect(() => {
@@ -215,7 +357,7 @@ export default function App() {
               Your session logs and answer metrics have been securely compiled and sent to the invigilator dashboard.
             </p>
           </div>
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 text-left text-sm font-mono text-slate-350 space-y-2">
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 text-left text-sm font-mono text-slate-355 space-y-2">
             <div><span className="text-slate-500">Student ID:</span> {studentId}</div>
             <div><span className="text-slate-500">Session ID:</span> {sessionId}</div>
             <div><span className="text-slate-500">Submission Time:</span> {new Date().toLocaleTimeString()}</div>
@@ -259,7 +401,7 @@ export default function App() {
                 Secure Student Portal
               </h2>
               <p className="text-slate-400 text-xs leading-relaxed">
-                ExamGuard AI uses advanced keyframe frame differencing & dynamic PyTorch classifications to verify exam integrity.
+                ExamGuard AI uses browser-side ONNX Runtime edge inference to analyze keyframes locally for compliance and privacy.
               </p>
             </div>
 
@@ -280,19 +422,28 @@ export default function App() {
 
               <div className="p-4 bg-slate-900/50 border border-slate-800/80 rounded-xl space-y-3">
                 <h4 className="text-xs font-bold text-slate-300 flex items-center gap-1.5 uppercase tracking-wide">
-                  <Camera className="w-4 h-4 text-cyan-400" /> Pre-Exam Checklist
+                  <Camera className="w-4 h-4 text-cyan-400" /> Edge Proctor Status
                 </h4>
-                <ul className="text-[11px] text-slate-400 space-y-1.5 list-disc pl-4">
-                  <li>Allow webcam access when requested.</li>
-                  <li>Ensure your face is well-lit and fully visible.</li>
-                  <li>Do not leave the browser tab or open other apps.</li>
-                  <li>Talking or using external devices will log alerts.</li>
+                <div className="text-[11px] text-slate-400 flex items-center justify-between">
+                  <span>Local ONNX Engine:</span>
+                  {modelLoading ? (
+                    <span className="text-amber-400 font-bold animate-pulse">LOADING MODEL...</span>
+                  ) : ortSessionRef.current ? (
+                    <span className="text-emerald-400 font-bold">READY (ON-DEVICE)</span>
+                  ) : (
+                    <span className="text-rose-500 font-bold">MODEL OFFLINE</span>
+                  )}
+                </div>
+                <ul className="text-[10px] text-slate-400 space-y-1 list-disc pl-4 border-t border-slate-900/60 pt-2">
+                  <li>Local inference respects your privacy—no normal frames leave this device.</li>
+                  <li>Ensure your webcam remains activated throughout the test.</li>
                 </ul>
               </div>
 
               <button
                 type="submit"
-                className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-semibold py-3.5 rounded-xl transition-all shadow-lg shadow-indigo-600/20"
+                disabled={modelLoading || !ortSessionRef.current}
+                className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-semibold py-3.5 rounded-xl transition-all shadow-lg shadow-indigo-600/20 disabled:opacity-50"
               >
                 Authenticate & Start Exam
               </button>
@@ -463,35 +614,35 @@ export default function App() {
                 className="w-full h-full object-cover transform scale-x-[-1]"
               />
               <div className="absolute bottom-3 left-3 bg-slate-950/80 border border-slate-800/80 px-2 py-0.5 rounded text-[9px] font-mono text-slate-400 font-bold uppercase tracking-wider">
-                1 FPS stream active
+                1 FPS edge analysis
               </div>
             </div>
             
-            <p className="text-[10px] text-slate-400 leading-normal bg-slate-900/50 border border-slate-850 p-3 rounded-xl">
-              ExamGuard AI executes pixel difference calculations locally. Only frame transformations exceeding dynamic motion variance thresholds are evaluated by PyTorch.
+            <p className="text-[10px] text-slate-400 leading-normal bg-slate-900/50 border border-slate-855 p-3 rounded-xl">
+              Webcam images are preprocessed to Float32 input arrays and evaluated locally by ONNX. Frame telemetry is sent to the FastAPI server only when anomalies are classified.
             </p>
           </div>
 
           {/* Quick Stats Panel */}
           <div className="glass-panel rounded-3xl p-5 space-y-3 font-mono text-[10px] text-slate-400 leading-loose shadow-xl">
             <h5 className="font-sans font-bold text-xs text-slate-350 uppercase tracking-wide mb-1">
-              Engine Metrics
+              On-Device Metrics
             </h5>
             <div className="flex justify-between border-b border-slate-900 pb-1.5">
               <span>Status:</span>
-              <span className="text-emerald-400 font-bold">SECURE_RUNNING</span>
+              <span className="text-emerald-400 font-bold font-sans">EDGE_INFERENCE_ACTIVE</span>
             </div>
             <div className="flex justify-between border-b border-slate-900 pb-1.5">
-              <span>Frame Rate:</span>
-              <span>1.0 Hz (Webcam)</span>
+              <span>Runtime Engine:</span>
+              <span>ONNX Runtime Web</span>
             </div>
             <div className="flex justify-between border-b border-slate-900 pb-1.5">
-              <span>Encryption:</span>
-              <span>SSL / WSS AES-128</span>
+              <span>Inference Device:</span>
+              <span>WebGPU / WASM</span>
             </div>
             <div className="flex justify-between">
-              <span>Local Model:</span>
-              <span>CNN-Placeholder v1.0</span>
+              <span>CNN Weights:</span>
+              <span>Placeholder (27 KB ONNX)</span>
             </div>
           </div>
         </section>
@@ -500,7 +651,7 @@ export default function App() {
       {/* Footer */}
       <footer className="py-4 text-center border-t border-slate-900 bg-slate-950/40">
         <p className="text-[10px] text-slate-600 uppercase tracking-widest">
-          ExamGuard AI • Real-Time Academic Integrity Enforcement Suite
+          ExamGuard AI • Edge-Powered Academic Integrity Suite
         </p>
       </footer>
     </div>

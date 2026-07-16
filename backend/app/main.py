@@ -239,70 +239,67 @@ async def student_stream(websocket: WebSocket, session_id: str, db: Session = De
             data = json.loads(data_str)
             msg_type = data.get("type")
 
-            if msg_type == "frame":
+            if msg_type == "anomaly":
+                label = data.get("anomaly_type")
+                confidence = data.get("confidence", 0.0)
                 b64_frame = data.get("frame")
-                if not b64_frame:
+                if not label:
                     continue
 
-                try:
-                    img = decode_base64_image(b64_frame)
-                except Exception:
-                    continue
+                frame_path_web = None
+                thumb_path_web = None
 
-                if img is None:
-                    continue
+                if b64_frame:
+                    try:
+                        img = decode_base64_image(b64_frame)
+                        if img is not None:
+                            alert_id = str(uuid.uuid4())
+                            frame_filename = f"{session_id}_{alert_id}.jpg"
+                            thumb_filename = f"{session_id}_{alert_id}_thumb.jpg"
+                            
+                            frame_path_abs = os.path.join(FRAMES_DIR, frame_filename)
+                            thumb_path_abs = os.path.join(THUMBNAILS_DIR, thumb_filename)
 
-                # Run Motion Keyframe Extractor
-                is_keyframe, avg_diff, threshold = extractor.process_frame(img)
+                            # Write to files
+                            import cv2
+                            cv2.imwrite(frame_path_abs, img)
+                            cv2.imwrite(thumb_path_abs, create_thumbnail(img))
 
-                if is_keyframe:
-                    # Execute PyTorch classification on the detected keyframe
-                    label, confidence, class_id = inference_engine.analyze_frame(img)
+                            frame_path_web = f"/static/frames/{frame_filename}"
+                            thumb_path_web = f"/static/thumbnails/{thumb_filename}"
+                    except Exception as img_err:
+                        print(f"[ERROR] Failed to save anomaly image: {img_err}")
 
-                    # Anomaly mapping: class_id 0 is "Normal". We flag if class_id > 0
-                    if class_id > 0:
-                        alert_id = str(uuid.uuid4())
-                        frame_filename = f"{session_id}_{alert_id}.jpg"
-                        thumb_filename = f"{session_id}_{alert_id}_thumb.jpg"
-                        
-                        frame_path_abs = os.path.join(FRAMES_DIR, frame_filename)
-                        thumb_path_abs = os.path.join(THUMBNAILS_DIR, thumb_filename)
+                # Save anomaly in database
+                new_alert = SessionAlert(
+                    session_id=session_id,
+                    anomaly_type=label,
+                    confidence=float(confidence),
+                    frame_path=frame_path_web,
+                    thumbnail_path=thumb_path_web,
+                    timestamp=datetime.utcnow()
+                )
+                db.add(new_alert)
+                db.commit()
 
-                        # Write to files
-                        import cv2
-                        cv2.imwrite(frame_path_abs, img)
-                        cv2.imwrite(thumb_path_abs, create_thumbnail(img))
+                # Construct dashboard notification
+                alert_payload = {
+                    "type": "alert",
+                    "session_id": session_id,
+                    "student_id": session.student_id,
+                    "anomaly_type": label,
+                    "confidence": round(float(confidence) * 100, 1),
+                    "timestamp": new_alert.timestamp.isoformat(),
+                    "thumbnail_path": new_alert.thumbnail_path,
+                    "frame_path": new_alert.frame_path
+                }
+                await manager.broadcast_to_dashboards(alert_payload)
 
-                        # Save anomaly in database
-                        new_alert = SessionAlert(
-                            session_id=session_id,
-                            anomaly_type=label,
-                            confidence=confidence,
-                            frame_path=f"/static/frames/{frame_filename}",
-                            thumbnail_path=f"/static/thumbnails/{thumb_filename}",
-                            timestamp=datetime.utcnow()
-                        )
-                        db.add(new_alert)
-                        db.commit()
-
-                        # Construct dashboard notification
-                        alert_payload = {
-                            "type": "alert",
-                            "session_id": session_id,
-                            "student_id": session.student_id,
-                            "anomaly_type": label,
-                            "confidence": round(confidence * 100, 1),
-                            "timestamp": new_alert.timestamp.isoformat(),
-                            "thumbnail_path": new_alert.thumbnail_path,
-                            "frame_path": new_alert.frame_path
-                        }
-                        await manager.broadcast_to_dashboards(alert_payload)
-
-                        # Send warnings back to student UI
-                        await websocket.send_json({
-                            "type": "warning",
-                            "message": f"Suspicious Activity Detected: {label}. Please remain focused on the exam."
-                        })
+                # Send warnings back to student UI
+                await websocket.send_json({
+                    "type": "warning",
+                    "message": f"Suspicious Activity Detected: {label}. Please remain focused on the exam."
+                })
 
             elif msg_type == "visibility_change":
                 visible = data.get("visible", True)
