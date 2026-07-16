@@ -386,7 +386,7 @@ export default function App() {
       const history = diffHistoryRef.current;
       if (history.length >= 5) {
         const mean = history.reduce((a, b) => a + b, 0) / history.length;
-        const variance = history.reduce((a, Math.pow) => a + Math.pow(Math.pow - mean, 2), 0) / history.length;
+        const variance = history.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / history.length;
         const std = Math.sqrt(variance);
         threshold = mean + std;
       }
