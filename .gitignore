@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+venv/
+data/
+dataset/
+runs/
+*.pt
+.DS_Store
