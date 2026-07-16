@@ -25,6 +25,7 @@ interface AlertPayload {
   thumbnail_path: string | null;
   frame_path: string | null;
   video_clip_path?: string | null;
+  override_status?: string;
 }
 
 interface HistoricalReport {
@@ -42,6 +43,7 @@ interface HistoricalReport {
     frame_path: string | null;
     thumbnail_path: string | null;
     video_clip_path: string | null;
+    override_status: string;
   }>;
   timeline_chart: Array<{
     elapsed_seconds: number;
@@ -265,7 +267,8 @@ export default function App() {
           timestamp: data.timestamp,
           thumbnail_path: data.thumbnail_path,
           frame_path: data.frame_path,
-          video_clip_path: data.video_clip_path || null
+          video_clip_path: data.video_clip_path || null,
+          override_status: data.override_status || "pending"
         };
         
         // Prepend to alert feed
@@ -302,6 +305,26 @@ export default function App() {
         setSelectedAlert((prev) => {
           if (prev && prev.id === alert_id) {
             return { ...prev, video_clip_path };
+          }
+          return prev;
+        });
+      } else if (data.type === "alert_override") {
+        const { alert_id, override_status } = data;
+        setLiveAlerts((prev) =>
+          prev.map((a) => (a.id === alert_id ? { ...a, override_status } : a))
+        );
+        setSessionReport((prevReport) => {
+          if (!prevReport) return null;
+          return {
+            ...prevReport,
+            alerts: prevReport.alerts.map((a) =>
+              a.id === alert_id ? { ...a, override_status } : a
+            )
+          };
+        });
+        setSelectedAlert((prev) => {
+          if (prev && prev.id === alert_id) {
+            return { ...prev, override_status };
           }
           return prev;
         });
@@ -379,6 +402,43 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Submit alert validation override to backend
+  const handleAlertOverride = async (status: "confirmed" | "dismissed") => {
+    if (!selectedAlert) return;
+    try {
+      const res = await fetch(`http://localhost:8000/session/${selectedAlert.session_id}/alert/${selectedAlert.id}/override`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Update local selectedAlert state immediately
+        setSelectedAlert((prev) => prev ? { ...prev, override_status: data.override_status } : null);
+        
+        // Also update in liveAlerts
+        setLiveAlerts((prev) =>
+          prev.map((a) => (a.id === selectedAlert.id ? { ...a, override_status: data.override_status } : a))
+        );
+        
+        // Also update in sessionReport if open
+        setSessionReport((prevReport) => {
+          if (!prevReport) return null;
+          return {
+            ...prevReport,
+            alerts: prevReport.alerts.map((a) =>
+              a.id === selectedAlert.id ? { ...a, override_status: data.override_status } : a
+            )
+          };
+        });
+      } else {
+        alert("Failed to save override action on database.");
+      }
+    } catch (err) {
+      console.error("Override api call failed:", err);
+    }
   };
 
   if (!isAuthenticated) {
@@ -623,9 +683,15 @@ export default function App() {
                             <span className="px-2 py-0.5 text-[9px] font-bold font-mono bg-slate-900 text-indigo-400 border border-slate-800 rounded">
                               {alert.student_id}
                             </span>
-                            <span className="text-[9px] text-slate-500 font-mono">
-                              {new Date(alert.timestamp).toLocaleTimeString()}
-                            </span>
+                            <div className="text-[9px] text-slate-500 font-mono flex items-center gap-1.5">
+                              {alert.override_status === "confirmed" && (
+                                <span className="text-[8px] text-rose-400 font-bold bg-rose-950/40 px-1.5 py-0.5 border border-rose-900/30 rounded">Confirmed</span>
+                              )}
+                              {alert.override_status === "dismissed" && (
+                                <span className="text-[8px] text-slate-400 font-bold bg-slate-900 px-1.5 py-0.5 border border-slate-850 rounded line-through">Dismissed</span>
+                              )}
+                              <span>{new Date(alert.timestamp).toLocaleTimeString()}</span>
+                            </div>
                           </div>
 
                           <div className="flex gap-3">
@@ -963,12 +1029,20 @@ export default function App() {
                           Student ID: {sessionReport.student_id} • Session: {sessionReport.session_id}
                         </p>
                       </div>
-                      <button
-                        onClick={exportCSV}
-                        className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow"
-                      >
-                        <Download className="w-3.5 h-3.5" /> Export logs (CSV)
-                      </button>
+                      <div className="flex gap-2 shrink-0 print:hidden">
+                        <button
+                          onClick={exportCSV}
+                          className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow"
+                        >
+                          <Download className="w-3.5 h-3.5" /> Export logs (CSV)
+                        </button>
+                        <button
+                          onClick={() => window.print()}
+                          className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow shadow-indigo-600/20"
+                        >
+                          <FileText className="w-3.5 h-3.5" /> Compile PDF Report
+                        </button>
+                      </div>
                     </div>
 
                     {sessionReport.timeline_chart.length === 0 ? (
@@ -1050,7 +1124,8 @@ export default function App() {
                               timestamp: a.timestamp,
                               thumbnail_path: a.thumbnail_path,
                               frame_path: a.frame_path,
-                              video_clip_path: a.video_clip_path
+                              video_clip_path: a.video_clip_path,
+                              override_status: a.override_status
                             })}
                             className="p-3 bg-slate-950/70 border border-slate-850 hover:border-slate-800 rounded-xl text-xs cursor-pointer flex gap-3 transition-all"
                           >
@@ -1064,11 +1139,19 @@ export default function App() {
                             <div className="flex-1 space-y-0.5">
                               <div className="font-bold text-slate-200 flex items-center justify-between gap-1">
                                 <span>{a.anomaly_type}</span>
-                                {a.video_clip_path && (
-                                  <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0 font-sans">
-                                    🎥 Evidence
-                                  </span>
-                                )}
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {a.video_clip_path && (
+                                    <span className="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wide font-sans">
+                                      🎥 Evidence
+                                    </span>
+                                  )}
+                                  {a.override_status === "confirmed" && (
+                                    <span className="bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[9px] font-bold px-1.5 py-0.5 rounded font-sans">Confirmed</span>
+                                  )}
+                                  {a.override_status === "dismissed" && (
+                                    <span className="bg-slate-900 text-slate-400 border border-slate-850 text-[9px] font-bold px-1.5 py-0.5 rounded line-through font-sans">Dismissed</span>
+                                  )}
+                                </div>
                               </div>
                               <div className="text-[9px] text-slate-500 font-mono">
                                 Time: {new Date(a.timestamp).toLocaleTimeString()}
@@ -1165,6 +1248,35 @@ export default function App() {
                   <div>
                     <span className="text-slate-500 block text-[9px] uppercase">Session Hash</span>
                     <span className="text-slate-200 text-[10px] break-all">{selectedAlert.session_id}</span>
+                  </div>
+                  <div className="pt-2 border-t border-slate-900">
+                    <span className="text-slate-500 block text-[9px] uppercase mb-1.5">Validation Status</span>
+                    <div className="flex flex-col gap-1.5">
+                      {selectedAlert.override_status === "confirmed" ? (
+                        <div className="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-3 py-1.5 rounded-lg text-xs font-bold text-center font-sans">
+                          ✓ Violation Confirmed
+                        </div>
+                      ) : selectedAlert.override_status === "dismissed" ? (
+                        <div className="bg-slate-900 text-slate-400 border border-slate-850 px-3 py-1.5 rounded-lg text-xs font-bold text-center line-through font-sans">
+                          ✗ Dismissed (False Alarm)
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <button
+                            onClick={() => handleAlertOverride("confirmed")}
+                            className="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-1.5 px-3 rounded-lg transition-all text-[11px] font-sans"
+                          >
+                            Confirm Violation
+                          </button>
+                          <button
+                            onClick={() => handleAlertOverride("dismissed")}
+                            className="w-full bg-slate-900 hover:bg-slate-800 text-slate-350 border border-slate-850 py-1.5 px-3 rounded-lg transition-all text-[11px] font-sans"
+                          >
+                            Dismiss (False Alarm)
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

@@ -202,7 +202,8 @@ def get_session_report(session_id: str, db: Session = Depends(get_db)):
             "confidence": a.confidence,
             "frame_path": a.frame_path,
             "thumbnail_path": a.thumbnail_path,
-            "video_clip_path": a.video_clip_path
+            "video_clip_path": a.video_clip_path,
+            "override_status": a.override_status
         })
         
         # Simple format for chart plotting: timestamp in seconds relative to start time
@@ -295,7 +296,8 @@ async def student_stream(websocket: WebSocket, session_id: str, db: Session = De
                     "confidence": round(float(confidence) * 100, 1),
                     "timestamp": new_alert.timestamp.isoformat(),
                     "thumbnail_path": new_alert.thumbnail_path,
-                    "frame_path": new_alert.frame_path
+                    "frame_path": new_alert.frame_path,
+                    "override_status": new_alert.override_status
                 }
                 await manager.broadcast_to_dashboards(alert_payload)
 
@@ -334,7 +336,8 @@ async def student_stream(websocket: WebSocket, session_id: str, db: Session = De
                         "confidence": 100.0,
                         "timestamp": new_alert.timestamp.isoformat(),
                         "thumbnail_path": None,
-                        "frame_path": None
+                        "frame_path": None,
+                        "override_status": new_alert.override_status
                     }
                     await manager.broadcast_to_dashboards(alert_payload)
                     
@@ -390,3 +393,32 @@ async def upload_anomaly_video(session_id: str, alert_id: int, file: UploadFile 
     await manager.broadcast_to_dashboards(clip_payload)
 
     return {"status": "success", "video_clip_path": alert.video_clip_path}
+
+@app.post("/session/{session_id}/alert/{alert_id}/override")
+async def override_alert_status(
+    session_id: str,
+    alert_id: int,
+    payload: dict,
+    db: Session = Depends(get_db)
+):
+    alert = db.query(SessionAlert).filter(SessionAlert.session_id == session_id, SessionAlert.id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert record not found")
+
+    status = payload.get("status")
+    if status not in ["confirmed", "dismissed", "pending"]:
+        raise HTTPException(status_code=400, detail="Invalid override status value")
+
+    alert.override_status = status
+    db.commit()
+
+    # Notify dashboards about the override update
+    override_payload = {
+        "type": "alert_override",
+        "session_id": session_id,
+        "alert_id": alert_id,
+        "override_status": status
+    }
+    await manager.broadcast_to_dashboards(override_payload)
+
+    return {"status": "success", "override_status": status}

@@ -33,20 +33,31 @@ class SessionAlert(Base):
     frame_path = Column(String, nullable=True)
     thumbnail_path = Column(String, nullable=True)
     video_clip_path = Column(String, nullable=True)
+    override_status = Column(String, default="pending", nullable=False)
 
     session = relationship("ExamSession", back_populates="alerts")
 
 def init_db():
     Base.metadata.create_all(bind=engine)
-    # Check if video_clip_path column exists, if not, add it
+    # Check if columns exist, if not, add them
     from sqlalchemy import text
     with engine.connect() as conn:
+        # Check video_clip_path
         try:
             conn.execute(text("SELECT video_clip_path FROM session_alerts LIMIT 1"))
         except Exception:
-            # Column doesn't exist, alter table
             try:
                 conn.execute(text("ALTER TABLE session_alerts ADD COLUMN video_clip_path VARCHAR"))
                 print("[DATABASE] Altered table session_alerts to add video_clip_path column.")
             except Exception as e:
-                print(f"[DATABASE] Alter table failed: {e}")
+                print(f"[DATABASE] Alter table video_clip_path failed: {e}")
+
+        # Check override_status
+        try:
+            conn.execute(text("SELECT override_status FROM session_alerts LIMIT 1"))
+        except Exception:
+            try:
+                conn.execute(text("ALTER TABLE session_alerts ADD COLUMN override_status VARCHAR DEFAULT 'pending'"))
+                print("[DATABASE] Altered table session_alerts to add override_status column.")
+            except Exception as e:
+                print(f"[DATABASE] Alter table override_status failed: {e}")
