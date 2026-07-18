@@ -97,6 +97,18 @@ export default function App() {
   const prevFrameGrayRef = useRef<Uint8Array | null>(null);
   const diffHistoryRef = useRef<number[]>([]);
 
+  // Sync state with refs to prevent stale closure in FaceMesh callback
+  const sessionStartedRef = useRef(sessionStarted);
+  const wsRef = useRef(ws);
+
+  useEffect(() => {
+    sessionStartedRef.current = sessionStarted;
+  }, [sessionStarted]);
+
+  useEffect(() => {
+    wsRef.current = ws;
+  }, [ws]);
+
   // Load ONNX Model and Setup MediaPipe on start
   const initializeEngines = async () => {
     try {
@@ -117,7 +129,7 @@ export default function App() {
         });
 
         faceMesh.setOptions({
-          maxNumFaces: 1,
+          maxNumFaces: 4,
           refineLandmarks: true, // required for iris tracking
           minDetectionConfidence: 0.5,
           minTrackingConfidence: 0.5
@@ -265,32 +277,50 @@ export default function App() {
 
   // Callback triggered when MediaPipe Face Mesh evaluates landmarks
   const onFaceMeshResults = useCallback(async (results: any) => {
-    if (!sessionStarted || !ws || ws.readyState !== WebSocket.OPEN) return;
+    const isStarted = sessionStartedRef.current;
+    const socket = wsRef.current;
+    if (!isStarted || !socket || socket.readyState !== WebSocket.OPEN) return;
 
     // A. Validate Face Visibility with Debouncing
     if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
       consecutiveMissingRef.current += 1;
-      if (consecutiveMissingRef.current >= 4) { // 4 consecutive frames (~1.4s at 350ms)
-        console.warn("[PROCTOR] Face not visible — blocking camera or looking away!");
-        ws.send(
+      if (consecutiveMissingRef.current >= 3) { // 3 consecutive frames (~1s)
+        console.warn("[PROCTOR] Face not visible — student left seat or camera blocked!");
+        const screenshot = webcamRef.current?.getScreenshot() || null;
+        socket.send(
           JSON.stringify({
             type: "anomaly",
             anomaly_type: "Camera Obstruction (Face Not Visible)",
             confidence: 1.0,
-            frame: webcamRef.current?.getScreenshot() || null
+            frame: screenshot
           })
         );
         setWarnings((prev) => ["Face not visible to camera. Please look directly at the screen.", ...prev.slice(0, 4)]);
-        consecutiveMissingRef.current = 0; // Reset so it fires again after another 4 frames
+        consecutiveMissingRef.current = 0; // Reset
       }
       return;
     } else {
       consecutiveMissingRef.current = 0;
     }
 
+    // B. Check for Multiple Persons (Class 3)
+    if (results.multiFaceLandmarks.length > 1) {
+      const screenshot = webcamRef.current?.getScreenshot() || null;
+      socket.send(
+        JSON.stringify({
+          type: "anomaly",
+          anomaly_type: "Multiple Persons Detected",
+          confidence: 0.95,
+          frame: screenshot
+        })
+      );
+      setWarnings((prev) => ["Security Alert: Multiple persons detected in camera frame!", ...prev.slice(0, 4)]);
+      return;
+    }
+
     const landmarks = results.multiFaceLandmarks[0];
 
-    // B. Head Pose Estimation (Yaw & Pitch)
+    // C. Head Pose Estimation (Yaw & Pitch)
     const leftCheek = landmarks[234];
     const rightCheek = landmarks[454];
     const noseTip = landmarks[4];
@@ -309,11 +339,12 @@ export default function App() {
 
     let headViolation = false;
     let headLabel = "";
+    let headConfidence = 0.85;
 
-    // Debounce yaw movements (left/right) — 4 frames at 350ms ≈ 1.4s persistent look-away
-    if (horizontalRatio < 0.55 || horizontalRatio > 1.8) {
+    // Debounce yaw movements (left/right) — sensitive threshold
+    if (horizontalRatio < 0.68 || horizontalRatio > 1.45) {
       consecutiveCheekRef.current += 1;
-      if (consecutiveCheekRef.current >= 4) {
+      if (consecutiveCheekRef.current >= 2) { // 2 frames (~700ms)
         headViolation = true;
         headLabel = "Head turned sideways (Yaw Deviation)";
         consecutiveCheekRef.current = 0;
@@ -323,18 +354,24 @@ export default function App() {
     }
 
     // Debounce pitch movements (up/down)
-    if (verticalRatio < 0.55 || verticalRatio > 1.7) {
+    if (verticalRatio < 0.75 || verticalRatio > 1.35) {
       consecutivePitchRef.current += 1;
-      if (consecutivePitchRef.current >= 4) {
+      if (consecutivePitchRef.current >= 2) { // 2 frames (~700ms)
         headViolation = true;
-        headLabel = "Head tilted up or down (Pitch Deviation)";
+        if (verticalRatio > 1.35) {
+          // Looking down (e.g. smartphone/book usage)
+          headLabel = "Suspected External Device (Looking Down)";
+          headConfidence = 0.92;
+        } else {
+          headLabel = "Head tilted up or down (Pitch Deviation)";
+        }
         consecutivePitchRef.current = 0;
       }
     } else {
       consecutivePitchRef.current = 0;
     }
 
-    // C. Eye Gaze Iris Drift Tracking with Debouncing
+    // D. Eye Gaze Iris Drift Tracking (Looking Off-Screen)
     const leftIris = landmarks[468];
     const rightIris = landmarks[473];
     const leftEyeOuter = landmarks[33];
@@ -349,9 +386,9 @@ export default function App() {
     const rightGazeIndex = (rightIris.x - Math.min(rightEyeInner.x, rightEyeOuter.x)) / (rightEyeWidth + 1e-6);
 
     let gazeViolation = false;
-    if (leftGazeIndex < 0.25 || leftGazeIndex > 0.75 || rightGazeIndex < 0.25 || rightGazeIndex > 0.75) {
+    if (leftGazeIndex < 0.32 || leftGazeIndex > 0.68 || rightGazeIndex < 0.32 || rightGazeIndex > 0.68) {
       consecutiveGazeRef.current += 1;
-      if (consecutiveGazeRef.current >= 4) {
+      if (consecutiveGazeRef.current >= 2) { // 2 frames (~700ms)
         gazeViolation = true;
         consecutiveGazeRef.current = 0;
       }
@@ -359,7 +396,7 @@ export default function App() {
       consecutiveGazeRef.current = 0;
     }
 
-    // D. Visual CNN Classification (Device / Person detections)
+    // E. Visual CNN Classification (Device / Person detections)
     const video = webcamRef.current?.video;
     if (!video) return;
 
@@ -373,50 +410,12 @@ export default function App() {
     const imgData = ctx.getImageData(0, 0, 224, 224);
     const data = imgData.data;
 
-    // Motion checks (client-side frame differencing)
-    let isKeyframe = false;
-    const prevGray = prevFrameGrayRef.current;
-    
-    // Grayscale mapping for diffing
-    const gray = new Uint8Array(224 * 224);
-    for (let i = 0; i < data.length; i += 4) {
-      gray[i / 4] = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
-    }
-
-    if (prevGray === null) {
-      isKeyframe = true;
-    } else {
-      let sumDiff = 0;
-      for (let i = 0; i < gray.length; i++) {
-        sumDiff += Math.abs(gray[i] - prevGray[i]);
-      }
-      const avgDiff = sumDiff / gray.length;
-
-      let threshold = 5.0;
-      const history = diffHistoryRef.current;
-      if (history.length >= 5) {
-        const mean = history.reduce((a, b) => a + b, 0) / history.length;
-        const variance = history.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / history.length;
-        const std = Math.sqrt(variance);
-        threshold = mean + std;
-      }
-
-      if (avgDiff > threshold) {
-        isKeyframe = true;
-      }
-
-      history.push(avgDiff);
-      if (history.length > 30) {
-        history.shift();
-      }
-    }
-    prevFrameGrayRef.current = gray;
-
     let cnnViolation = false;
     let cnnLabel = "";
     let cnnConfidence = 0.0;
 
-    if (isKeyframe && ortSessionRef.current) {
+    // Run CNN on every frame to be completely responsive (no motion restrictor)
+    if (ortSessionRef.current) {
       const floatData = new Float32Array(3 * 224 * 224);
       const rOffset = 0;
       const gOffset = 224 * 224;
@@ -455,7 +454,7 @@ export default function App() {
       }
     }
 
-    // E. Resolve Trigger Priority
+    // F. Resolve Trigger Priority
     let alertType = "";
     let confidence = 0.0;
 
@@ -464,16 +463,16 @@ export default function App() {
       confidence = cnnConfidence;
     } else if (headViolation) {
       alertType = headLabel;
-      confidence = 0.85;
+      confidence = headConfidence;
     } else if (gazeViolation) {
       alertType = "Gaze Deviation (Looking Off-Screen)";
       confidence = 0.80;
     }
 
-    if (alertType && webcamRef.current && ws && ws.readyState === WebSocket.OPEN) {
+    if (alertType && webcamRef.current) {
       const screenshot = webcamRef.current.getScreenshot();
       if (screenshot) {
-        ws.send(
+        socket.send(
           JSON.stringify({
             type: "anomaly",
             anomaly_type: alertType,
@@ -483,7 +482,7 @@ export default function App() {
         );
       }
     }
-  }, [sessionStarted, ws]);
+  }, []);
 
   // Handle start session API and WS setup
   const startExam = async (e: React.FormEvent) => {
@@ -602,7 +601,7 @@ export default function App() {
     const rms = Math.sqrt(sumSquares / timeData.length);
 
     // Whisper/Speech threshold
-    if (rms > 0.02) {
+    if (rms > 0.015) {
       const dataArray = new Uint8Array(bufferLength);
       analyser.getByteFrequencyData(dataArray);
 
@@ -624,20 +623,23 @@ export default function App() {
 
       const speechRatio = voiceEnergy / (totalEnergy + 1e-6);
 
-      if (speechRatio > 0.40) {
+      if (speechRatio > 0.35) {
         consecutiveSpeechRef.current += 1;
-        if (consecutiveSpeechRef.current >= 2) { // 2 consecutive seconds
+        if (consecutiveSpeechRef.current >= 1) { // 1 second is enough to flag
           console.log(`[AUDIO] Acoustic Violation flagged: Speech concentration ratio ${(speechRatio * 100).toFixed(1)}%`);
-          const confidence = Math.min(0.60 + (rms - 0.02) * 4 + speechRatio * 0.2, 0.99);
+          const confidence = Math.min(0.60 + (rms - 0.015) * 4 + speechRatio * 0.2, 0.99);
 
-          ws.send(
-            JSON.stringify({
-              type: "anomaly",
-              anomaly_type: "Acoustic Violation (Speech/Whispering)",
-              confidence: confidence,
-              frame: null
-            })
-          );
+          const socket = wsRef.current;
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(
+              JSON.stringify({
+                type: "anomaly",
+                anomaly_type: "Acoustic Violation (Speech/Whispering)",
+                confidence: confidence,
+                frame: null
+              })
+            );
+          }
         }
       } else {
         consecutiveSpeechRef.current = 0;
@@ -645,7 +647,7 @@ export default function App() {
     } else {
       consecutiveSpeechRef.current = 0;
     }
-  }, [ws]);
+  }, []);
 
   // Main 350ms capture loop — faster response to head/gaze violations
   useEffect(() => {
