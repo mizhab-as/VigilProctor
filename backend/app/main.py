@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.keyframe import MotionKeyframeExtractor
 from app.core.inference import ExamGuardInferenceEngine
-from app.database.models import init_db, SessionLocal, ExamSession, SessionAlert
+from app.database.models import init_db, SessionLocal, ExamSession, SessionAlert, QuestionModel
 
 # Initialize directories for image persistence
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data"))
@@ -109,6 +109,43 @@ def create_thumbnail(img, max_size=(160, 120)):
 # Request models
 class SessionStartRequest(BaseModel):
     student_id: str
+
+class QuestionCreate(BaseModel):
+    text: str
+    options: list[str]
+
+@app.get("/questions")
+def get_questions(db: Session = Depends(get_db)):
+    questions = db.query(QuestionModel).all()
+    result = []
+    for q in questions:
+        try:
+            options = json.loads(q.options_json)
+        except Exception:
+            options = []
+        result.append({
+            "id": q.id,
+            "text": q.text,
+            "options": options
+        })
+    return result
+
+@app.post("/questions")
+def create_question(req: QuestionCreate, db: Session = Depends(get_db)):
+    if len(req.options) != 4:
+        raise HTTPException(status_code=400, detail="Exactly 4 options are required")
+    new_q = QuestionModel(
+        text=req.text,
+        options_json=json.dumps(req.options)
+    )
+    db.add(new_q)
+    db.commit()
+    db.refresh(new_q)
+    return {
+        "id": new_q.id,
+        "text": new_q.text,
+        "options": req.options
+    }
 
 @app.post("/session/start")
 async def start_session(req: SessionStartRequest, db: Session = Depends(get_db)):
@@ -344,6 +381,17 @@ async def student_stream(websocket: WebSocket, session_id: str, db: Session = De
                     await websocket.send_json({
                         "type": "warning",
                         "message": "Security Warning: Leaving the exam screen is logged as a violation!"
+                    })
+
+            elif msg_type == "heartbeat":
+                # Forward live webcam frame to all dashboard watchers
+                b64_frame = data.get("frame")
+                if b64_frame:
+                    await manager.broadcast_to_dashboards({
+                        "type": "live_feed",
+                        "session_id": session_id,
+                        "student_id": session.student_id,
+                        "frame": b64_frame
                     })
 
     except WebSocketDisconnect:

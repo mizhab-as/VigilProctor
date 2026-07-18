@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ExamGuard AI — Secure Exam Session</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F6F3EC;
+    --card:#FFFFFF;
+    --line:#E4DFD2;
+    --ink:#1C2430;
+    --ink-soft:#5B6472;
+    --oxford:#1E3A5F;
+    --oxford-deep:#152C48;
+    --oxford-wash:#EAEFF5;
+    --seal:#8C2F39;
+    --seal-wash:#F7EAEA;
+    --verdigris:#4B7A6B;
+    --gold:#B8912F;
+    --radius:8px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Inter',sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+  }
+
+  /* ---------- HEADER ---------- */
+  header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:16px 40px;
+    border-bottom:1px solid var(--line);
+    background:var(--paper);
+    position:sticky;
+    top:0;
+    z-index:10;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand svg{ width:24px; height:24px; }
+  .brand-word{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    letter-spacing:0.12em;
+    color:var(--ink);
+    font-weight:500;
+  }
+  .header-right{ display:flex; align-items:center; gap:14px; }
+  .timer{
+    display:flex; align-items:center; gap:7px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:14px; font-weight:500;
+    color:var(--oxford);
+    border:1px solid var(--line);
+    border-radius:999px;
+    padding:6px 14px;
+  }
+  .student-tag{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+    border:1px solid var(--line);
+    border-radius:999px;
+    padding:6px 14px;
+  }
+
+  /* ---------- MAIN LAYOUT ---------- */
+  main{
+    max-width:1180px;
+    margin:0 auto;
+    padding:40px;
+    display:grid;
+    grid-template-columns:1.7fr 1fr;
+    gap:32px;
+    align-items:start;
+  }
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:32px;
+  }
+
+  .q-meta{
+    display:flex;
+    justify-content:space-between;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin-bottom:20px;
+  }
+  .q-text{
+    font-family:'Newsreader',serif;
+    font-weight:600;
+    font-size:21px;
+    line-height:1.5;
+    margin:0 0 28px 0;
+  }
+  .option{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:15px 18px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    margin-bottom:10px;
+    font-size:14px;
+    cursor:pointer;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .option:hover{ border-color:#C9C2AE; }
+  .option .dot{
+    width:16px; height:16px;
+    border-radius:50%;
+    border:1.5px solid #C9C2AE;
+    flex-shrink:0;
+  }
+  .option.selected{
+    border-color:var(--oxford);
+    background:var(--oxford-wash);
+  }
+  .option.selected .dot{
+    border-color:var(--oxford);
+    background:var(--oxford);
+    box-shadow:inset 0 0 0 3px var(--oxford-wash);
+  }
+
+  .nav-row{
+    display:flex;
+    justify-content:space-between;
+    margin-top:20px;
+  }
+  .btn{
+    font-family:'Inter',sans-serif;
+    font-size:13px;
+    font-weight:600;
+    padding:12px 24px;
+    border-radius:var(--radius);
+    cursor:pointer;
+    border:1px solid transparent;
+    transition:all .15s ease;
+  }
+  .btn-ghost{
+    background:transparent;
+    border-color:var(--line);
+    color:var(--ink-soft);
+  }
+  .btn-ghost:hover{ background:var(--oxford-wash); color:var(--ink); }
+  .btn-primary{ background:var(--oxford); color:var(--paper); }
+  .btn-primary:hover{ background:var(--oxford-deep); }
+
+  /* ---------- RIGHT COLUMN ---------- */
+  .side-stack{ display:flex; flex-direction:column; gap:24px; }
+  .panel-title{
+    display:flex; align-items:center; justify-content:space-between;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:0.1em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin-bottom:16px;
+  }
+  .rec-dot{ display:flex; align-items:center; gap:6px; color:var(--seal); }
+  .rec-dot::before{
+    content:""; width:6px; height:6px; border-radius:50%; background:var(--seal);
+  }
+
+  .webcam-frame{
+    aspect-ratio:4/3;
+    border:1px solid var(--line);
+    border-radius:6px;
+    background:
+      repeating-linear-gradient(135deg, #F0ECE1 0 2px, transparent 2px 14px);
+    display:flex; align-items:center; justify-content:center;
+    color:#B4AD9C;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+  }
+  .webcam-note{
+    font-size:12px;
+    color:var(--ink-soft);
+    line-height:1.6;
+    margin-top:14px;
+  }
+
+  .ledger-rows .row{
+    display:flex; justify-content:space-between;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px;
+    padding:10px 0;
+    border-top:1px solid var(--line);
+  }
+  .ledger-rows .row:first-child{ border-top:none; }
+  .row .val{ font-weight:500; }
+  .val.status-active{ color:var(--verdigris); }
+
+  footer{
+    text-align:center;
+    padding:24px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:#B4AD9C;
+    border-top:1px solid var(--line);
+    margin-top:20px;
+  }
+
+  @media (max-width:900px){
+    main{ grid-template-columns:1fr; }
+    header{ padding:14px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M20 2 L23.5 6.5 L29 5 L29.5 10.7 L35 12.5 L32 17.5 L35 22.5 L29.5 24.3 L29 30 L23.5 28.5 L20 33 L16.5 28.5 L11 30 L10.5 24.3 L5 22.5 L8 17.5 L5 12.5 L10.5 10.7 L11 5 L16.5 6.5 Z"
+        stroke="#1E3A5F" stroke-width="1.4" fill="#F6F3EC"/>
+      <text x="20" y="21.5" text-anchor="middle" font-family="Newsreader, serif" font-size="10" font-weight="600" fill="#1E3A5F">EG</text>
+    </svg>
+    <span class="brand-word">EXAMGUARD SECURE PORTAL</span>
+  </div>
+  <div class="header-right">
+    <div class="timer">⏱ 44:51</div>
+    <div class="student-tag">Student: MITS-CS-2026-08</div>
+  </div>
+</header>
+
+<main>
+  <!-- QUESTION CARD -->
+  <div>
+    <div class="card">
+      <div class="q-meta">
+        <span>Question 1 of 4</span>
+        <span>General Knowledge Section</span>
+      </div>
+      <p class="q-text">According to Ramzan et al. (2024), which CNN / object-detection architecture achieved the highest performance for online exam proctoring?</p>
+
+      <div class="option"><span class="dot"></span> DenseNet121</div>
+      <div class="option selected"><span class="dot"></span> Inception-V3</div>
+      <div class="option"><span class="dot"></span> Inception-ResNetV2</div>
+      <div class="option"><span class="dot"></span> YOLOv5</div>
+    </div>
+
+    <div class="nav-row">
+      <button class="btn btn-ghost" disabled>Previous</button>
+      <button class="btn btn-primary">Next question</button>
+    </div>
+  </div>
+
+  <!-- SIDE COLUMN -->
+  <div class="side-stack">
+    <div class="card">
+      <div class="panel-title">
+        <span>Webcam feed</span>
+        <span class="rec-dot">Recording</span>
+      </div>
+      <div class="webcam-frame">live preview</div>
+      <p class="webcam-note">This session is verified on the local client ledger. Face position and speech ratio are evaluated in-browser in real time.</p>
+    </div>
+
+    <div class="card">
+      <div class="panel-title"><span>Ledger metrics</span></div>
+      <div class="ledger-rows">
+        <div class="row"><span>Status</span><span class="val status-active">Invigilation active</span></div>
+        <div class="row"><span>Acoustic engine</span><span class="val">FFT filter</span></div>
+        <div class="row"><span>Vision engine</span><span class="val">ONNX + FaceMesh</span></div>
+        <div class="row"><span>Evidence highlight</span><span class="val">Rolling WebM</span></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>ExamGuard AI · Ledgers of Academic Integrity</footer>
+
+</body>
+</html>

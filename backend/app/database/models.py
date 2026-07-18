@@ -37,6 +37,13 @@ class SessionAlert(Base):
 
     session = relationship("ExamSession", back_populates="alerts")
 
+class QuestionModel(Base):
+    __tablename__ = "questions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    text = Column(String, nullable=False)
+    options_json = Column(String, nullable=False) # JSON encoded list of options
+
 def init_db():
     Base.metadata.create_all(bind=engine)
     # Check if columns exist, if not, add them
@@ -61,3 +68,57 @@ def init_db():
                 print("[DATABASE] Altered table session_alerts to add override_status column.")
             except Exception as e:
                 print(f"[DATABASE] Alter table override_status failed: {e}")
+
+    # Initialize questions if empty
+    import json
+    db_session = SessionLocal()
+    try:
+        count = db_session.query(QuestionModel).count()
+        if count == 0:
+            print("[DATABASE] Initializing default exam questions...")
+            default_questions = [
+                {
+                    "text": "According to Ramzan et al. (2024), which CNN/Object Detection architecture achieved the highest performance for online exam proctoring?",
+                    "options": ["DenseNet121", "Inception-V3", "Inception-ResNetV2", "YOLOv5"]
+                },
+                {
+                    "text": "In motion-based keyframe extraction, what is the role of the frame differencing threshold?",
+                    "options": [
+                        "To compress the video streams and reduce storage overhead on the server",
+                        "To eliminate redundant static frames and only pass high-motion transitions to the classification model",
+                        "To enhance image resolution and lighting levels using histogram models",
+                        "To track audio level anomalies and background voice cues"
+                    ]
+                },
+                {
+                    "text": "What is the primary benefit of deploying a WebSocket connection instead of HTTP polling in online proctoring systems?",
+                    "options": [
+                        "Securing the database from SQL Injection",
+                        "Reducing connection establishment overhead and enabling low-latency, real-time alert broadcasts",
+                        "Avoiding the need for client-side webcam permissions",
+                        "Enabling off-grid local storage without network streams"
+                    ]
+                },
+                {
+                    "text": "Which of the following is a privacy-by-design policy recommended for proctoring systems?",
+                    "options": [
+                        "Persisting 24/7 continuous video logs of students' rooms",
+                        "Storing only the keyframes classified as abnormal, and immediately discarding normal frames",
+                        "Uploading all user credentials directly to public clouds",
+                        "Disabling all local webcam warnings"
+                    ]
+                }
+            ]
+            for dq in default_questions:
+                q = QuestionModel(
+                    text=dq["text"],
+                    options_json=json.dumps(dq["options"])
+                )
+                db_session.add(q)
+            db_session.commit()
+            print("[DATABASE] Default exam questions populated successfully.")
+    except Exception as e:
+        print(f"[DATABASE] Question initialization failed: {e}")
+        db_session.rollback()
+    finally:
+        db_session.close()

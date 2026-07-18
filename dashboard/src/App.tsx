@@ -194,8 +194,16 @@ export default function App() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  // Views: "live", "reports" or "benchmarks"
-  const [currentView, setCurrentView] = useState<"live" | "reports" | "benchmarks">("live");
+  // Views: "live", "reports", "benchmarks", or "questions"
+  const [currentView, setCurrentView] = useState<"live" | "reports" | "benchmarks" | "questions">("live");
+
+  // Live webcam feeds from students (keyed by session_id)
+  const [liveFeeds, setLiveFeeds] = useState<Record<string, string>>({});
+
+  // Question management state
+  const [questionsList, setQuestionsList] = useState<{id: number; text: string; options: string[]}[]>([]);
+  const [newQuestion, setNewQuestion] = useState({ text: '', options: ['', '', '', ''] });
+  const [savingQuestion, setSavingQuestion] = useState(false);
 
   // Selected benchmark model index (Default to YOLOv5)
   const [benchmarkModelIdx, setBenchmarkModelIdx] = useState(4);
@@ -323,9 +331,16 @@ export default function App() {
           }
           return prev;
         });
+      } else if (data.type === "live_feed") {
+        // Update live feed thumbnail for this student session
+        setLiveFeeds((prev) => ({ ...prev, [data.session_id]: data.frame }));
       } else if (data.type === "session_status") {
         // A student session started or ended, trigger active fetch immediately
         fetchActive();
+        // Clear live feed for ended session
+        if (data.status === "completed") {
+          setLiveFeeds((prev) => { const next = {...prev}; delete next[data.session_id]; return next; });
+        }
       }
     };
 
@@ -338,6 +353,33 @@ export default function App() {
       socket.close();
     };
   }, [isAuthenticated]);
+
+  // Fetch the full questions list for management view
+  const fetchQuestions = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/questions");
+      if (res.ok) setQuestionsList(await res.json());
+    } catch (err) { console.error("Failed to load questions:", err); }
+  };
+
+  // Submit a new question
+  const submitQuestion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newQuestion.text.trim() || newQuestion.options.some(o => !o.trim())) return;
+    setSavingQuestion(true);
+    try {
+      const res = await fetch("http://localhost:8000/questions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: newQuestion.text, options: newQuestion.options })
+      });
+      if (res.ok) {
+        setNewQuestion({ text: '', options: ['', '', '', ''] });
+        await fetchQuestions();
+      }
+    } catch (err) { console.error("Failed to save question:", err); }
+    setSavingQuestion(false);
+  };
 
   // Load report data for specific session
   const loadSessionReport = async (sessionId: string) => {
@@ -667,6 +709,12 @@ export default function App() {
           >
             Session Reports
           </button>
+          <button
+            onClick={() => { setCurrentView("questions"); fetchQuestions(); }}
+            className={currentView === "questions" ? "active" : ""}
+          >
+            Manage Questions
+          </button>
         </nav>
         <div className="header-right">
           <span className="role-tag">Authorized Invigilator</span>
@@ -714,6 +762,41 @@ export default function App() {
                           : "var(--verdigris)"
                     } as React.CSSProperties}
                   >
+                    {/* Live feed thumbnail from heartbeat */}
+                    {liveFeeds[session.session_id] ? (
+                      <div style={{ position: 'relative', marginBottom: 8 }}>
+                        <img
+                          src={liveFeeds[session.session_id]}
+                          alt="Live feed"
+                          style={{
+                            width: '100%',
+                            aspectRatio: '4/3',
+                            objectFit: 'cover',
+                            borderRadius: 4,
+                            border: '1px solid var(--line)',
+                            transform: 'scaleX(-1)'
+                          }}
+                        />
+                        <span style={{
+                          position: 'absolute', top: 6, right: 6,
+                          fontFamily: "'IBM Plex Mono', monospace", fontSize: 8,
+                          background: 'var(--seal)', color: '#fff',
+                          padding: '2px 5px', borderRadius: 3, textTransform: 'uppercase',
+                          fontWeight: 700, letterSpacing: '0.1em'
+                        }}>Live</span>
+                      </div>
+                    ) : (
+                      <div style={{
+                        width: '100%', aspectRatio: '4/3',
+                        background: 'rgba(16,22,31,0.5)',
+                        border: '1px dashed var(--line)',
+                        borderRadius: 4, display: 'flex',
+                        alignItems: 'center', justifyContent: 'center',
+                        marginBottom: 8, color: 'var(--ink-soft)',
+                        fontFamily: "'IBM Plex Mono', monospace",
+                        fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.1em'
+                      }}>Awaiting feed…</div>
+                    )}
                     <div className="cohort-top">
                       <span className="cohort-id">{session.student_id}</span>
                       <span className="status-pill">{session.status_color}</span>
@@ -730,7 +813,7 @@ export default function App() {
                     </div>
                     <div className="cohort-bottom">
                       <span className="timestamp">
-                        🕒 {new Date(session.start_time).toLocaleTimeString()}
+                        {new Date(session.start_time).toLocaleTimeString()}
                       </span>
                       <span
                         onClick={() => {
@@ -1014,6 +1097,99 @@ export default function App() {
                   ))}
                 </div>
               </div>
+            </div>
+          </div>
+        ) : currentView === "questions" ? (
+          /* Questions Management Tab */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div className="section-title">
+              <h2>Exam question bank</h2>
+              <span className="meta">{questionsList.length} questions stored</span>
+            </div>
+
+            {/* Create new question form */}
+            <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
+              <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: '18px', letterSpacing: '0.1em' }}>
+                Add a new question
+              </h3>
+              <form onSubmit={submitQuestion} style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxWidth: '680px' }}>
+                <div>
+                  <label style={{ display: 'block', fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', textTransform: 'uppercase', color: 'var(--gold)', letterSpacing: '0.12em', marginBottom: 6 }}>Question text</label>
+                  <textarea
+                    required
+                    rows={3}
+                    value={newQuestion.text}
+                    onChange={(e) => setNewQuestion((prev) => ({ ...prev, text: e.target.value }))}
+                    placeholder="Enter the full question text…"
+                    style={{
+                      width: '100%', background: 'var(--midnight)', border: '1px solid var(--line)',
+                      color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '13px',
+                      padding: '10px 14px', borderRadius: '6px', outline: 'none', resize: 'vertical'
+                    }}
+                  />
+                </div>
+                {newQuestion.options.map((opt, i) => (
+                  <div key={i}>
+                    <label style={{ display: 'block', fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', textTransform: 'uppercase', color: 'var(--ink-soft)', letterSpacing: '0.1em', marginBottom: 6 }}>Option {String.fromCharCode(65 + i)}</label>
+                    <input
+                      type="text"
+                      required
+                      value={opt}
+                      onChange={(e) => {
+                        const updated = [...newQuestion.options];
+                        updated[i] = e.target.value;
+                        setNewQuestion((prev) => ({ ...prev, options: updated }));
+                      }}
+                      placeholder={`Option ${String.fromCharCode(65 + i)}…`}
+                      style={{
+                        width: '100%', background: 'var(--midnight)', border: '1px solid var(--line)',
+                        color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '13px',
+                        padding: '10px 14px', borderRadius: '6px', outline: 'none'
+                      }}
+                    />
+                  </div>
+                ))}
+                <button
+                  type="submit"
+                  disabled={savingQuestion}
+                  style={{
+                    alignSelf: 'flex-start', background: 'var(--oxford)', color: 'var(--midnight)',
+                    border: 'none', borderRadius: '6px', padding: '10px 28px',
+                    fontFamily: "'Inter', sans-serif", fontSize: '12.5px', fontWeight: 600,
+                    cursor: savingQuestion ? 'not-allowed' : 'pointer', opacity: savingQuestion ? 0.6 : 1
+                  }}
+                >
+                  {savingQuestion ? 'Saving…' : 'Add question'}
+                </button>
+              </form>
+            </div>
+
+            {/* Existing question list */}
+            <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
+              <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: '18px', letterSpacing: '0.1em' }}>
+                Current question bank
+              </h3>
+              {questionsList.length === 0 ? (
+                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: '13px', fontStyle: 'italic' }}>No questions loaded yet.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {questionsList.map((q, idx) => (
+                    <div key={q.id} style={{ background: 'var(--midnight)', border: '1px solid var(--line)', borderRadius: '6px', padding: '16px' }}>
+                      <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', alignItems: 'flex-start' }}>
+                        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: 'var(--gold)', border: '1px solid var(--gold)', borderRadius: 3, padding: '2px 6px', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>Q{idx + 1}</span>
+                        <p style={{ margin: 0, fontSize: '13px', color: 'var(--ink)', lineHeight: 1.5 }}>{q.text}</p>
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                        {q.options.map((opt, oi) => (
+                          <div key={oi} style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', color: 'var(--ink-soft)', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--line)', borderRadius: 4, padding: '6px 10px' }}>
+                            <strong style={{ color: 'var(--oxford)' }}>{String.fromCharCode(65 + oi)}.</strong> {opt}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ) : (

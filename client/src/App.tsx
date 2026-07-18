@@ -67,6 +67,7 @@ export default function App() {
   const [modelLoading, setModelLoading] = useState(false);
   const [modelError, setModelError] = useState<string | null>(null);
   const [modelReady, setModelReady] = useState(false);
+  const [questions, setQuestions] = useState<Question[]>(MOCK_QUESTIONS);
 
   const webcamRef = useRef<Webcam>(null);
   const ortSessionRef = useRef<ort.InferenceSession | null>(null);
@@ -268,17 +269,18 @@ export default function App() {
     // A. Validate Face Visibility with Debouncing
     if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0) {
       consecutiveMissingRef.current += 1;
-      if (consecutiveMissingRef.current >= 3) { // 3 consecutive seconds
-        console.warn("[PROCTOR] Face not visible for 3 seconds!");
+      if (consecutiveMissingRef.current >= 4) { // 4 consecutive frames (~1.4s at 350ms)
+        console.warn("[PROCTOR] Face not visible — blocking camera or looking away!");
         ws.send(
           JSON.stringify({
             type: "anomaly",
-            anomaly_type: "Interface Violation (Face Missing)",
+            anomaly_type: "Camera Obstruction (Face Not Visible)",
             confidence: 1.0,
             frame: webcamRef.current?.getScreenshot() || null
           })
         );
-        setWarnings((prev) => ["Security Warning: Face missing from webcam frame!", ...prev.slice(0, 4)]);
+        setWarnings((prev) => ["Face not visible to camera. Please look directly at the screen.", ...prev.slice(0, 4)]);
+        consecutiveMissingRef.current = 0; // Reset so it fires again after another 4 frames
       }
       return;
     } else {
@@ -307,12 +309,13 @@ export default function App() {
     let headViolation = false;
     let headLabel = "";
 
-    // Debounce yaw movements (left/right)
+    // Debounce yaw movements (left/right) — 4 frames at 350ms ≈ 1.4s persistent look-away
     if (horizontalRatio < 0.55 || horizontalRatio > 1.8) {
       consecutiveCheekRef.current += 1;
-      if (consecutiveCheekRef.current >= 3) {
+      if (consecutiveCheekRef.current >= 4) {
         headViolation = true;
-        headLabel = "Suspicious Head Movement (Yaw Deviation)";
+        headLabel = "Head turned sideways (Yaw Deviation)";
+        consecutiveCheekRef.current = 0;
       }
     } else {
       consecutiveCheekRef.current = 0;
@@ -321,9 +324,10 @@ export default function App() {
     // Debounce pitch movements (up/down)
     if (verticalRatio < 0.55 || verticalRatio > 1.7) {
       consecutivePitchRef.current += 1;
-      if (consecutivePitchRef.current >= 3) {
+      if (consecutivePitchRef.current >= 4) {
         headViolation = true;
-        headLabel = "Suspicious Head Movement (Pitch Deviation)";
+        headLabel = "Head tilted up or down (Pitch Deviation)";
+        consecutivePitchRef.current = 0;
       }
     } else {
       consecutivePitchRef.current = 0;
@@ -346,8 +350,9 @@ export default function App() {
     let gazeViolation = false;
     if (leftGazeIndex < 0.25 || leftGazeIndex > 0.75 || rightGazeIndex < 0.25 || rightGazeIndex > 0.75) {
       consecutiveGazeRef.current += 1;
-      if (consecutiveGazeRef.current >= 3) {
+      if (consecutiveGazeRef.current >= 4) {
         gazeViolation = true;
+        consecutiveGazeRef.current = 0;
       }
     } else {
       consecutiveGazeRef.current = 0;
@@ -485,6 +490,19 @@ export default function App() {
     if (!studentId.trim()) return;
 
     try {
+      // Fetch dynamic questions from backend (fall back to MOCK_QUESTIONS if unavailable)
+      try {
+        const qRes = await fetch("http://localhost:8000/questions");
+        if (qRes.ok) {
+          const qData = await qRes.json();
+          if (Array.isArray(qData) && qData.length > 0) {
+            setQuestions(qData);
+          }
+        }
+      } catch {
+        // Backend unavailable — keep MOCK_QUESTIONS
+      }
+
       const response = await fetch("http://localhost:8000/session/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -628,16 +646,33 @@ export default function App() {
     }
   }, [ws]);
 
-  // Main 1-second capture loop
+  // Main 350ms capture loop — faster response to head/gaze violations
   useEffect(() => {
     if (!sessionStarted || !ws) return;
     const timer = setInterval(() => {
       captureAndEvaluate();
+    }, 350);
+    // Audio analysis at separate 1s cadence (FFT doesn't benefit from sub-second sampling)
+    const audioTimer = setInterval(() => {
       analyzeAudio();
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => { clearInterval(timer); clearInterval(audioTimer); };
   }, [sessionStarted, ws, captureAndEvaluate, analyzeAudio]);
+
+  // Heartbeat loop — send live camera frame to admin dashboard every 5s
+  useEffect(() => {
+    if (!sessionStarted || !ws) return;
+    const heartbeat = setInterval(() => {
+      if (webcamRef.current && ws.readyState === WebSocket.OPEN) {
+        const frame = webcamRef.current.getScreenshot();
+        if (frame) {
+          ws.send(JSON.stringify({ type: "heartbeat", frame }));
+        }
+      }
+    }, 5000);
+    return () => clearInterval(heartbeat);
+  }, [sessionStarted, ws]);
 
   // Countdown timer
   useEffect(() => {
@@ -865,7 +900,7 @@ export default function App() {
     );
   }
 
-  const currentQuestion = MOCK_QUESTIONS[currentQuestionIdx];
+  const currentQuestion = questions[currentQuestionIdx];
 
   return (
     <div className="min-h-screen bg-[var(--paper)] flex flex-col justify-between font-sans text-[var(--ink)]">
@@ -921,7 +956,7 @@ export default function App() {
         <div>
           <div className="card">
             <div className="q-meta">
-              <span>Question {currentQuestionIdx + 1} of {MOCK_QUESTIONS.length}</span>
+              <span>Question {currentQuestionIdx + 1} of {questions.length}</span>
               <span>General Knowledge Section</span>
             </div>
             <p className="q-text">{currentQuestion.text}</p>
@@ -952,7 +987,7 @@ export default function App() {
               Previous
             </button>
 
-            {currentQuestionIdx < MOCK_QUESTIONS.length - 1 ? (
+            {currentQuestionIdx < questions.length - 1 ? (
               <button
                 onClick={() => setCurrentQuestionIdx((prev) => prev + 1)}
                 className="btn btn-primary-exam"
@@ -972,27 +1007,49 @@ export default function App() {
 
         {/* SIDE COLUMN — matching student-exam.html */}
         <div className="side-stack">
+          {/* Hidden Webcam — needed for MediaPipe and ONNX processing but not shown to student */}
+          <div style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' }}>
+            <Webcam
+              audio={false}
+              ref={webcamRef}
+              screenshotFormat="image/jpeg"
+              videoConstraints={{
+                width: 320,
+                height: 240,
+                facingMode: "user"
+              }}
+            />
+          </div>
+
           <div className="card">
             <div className="panel-title">
-              <span>Webcam feed</span>
-              <span className="rec-dot">Recording</span>
+              <span>Camera status</span>
+              <span className="rec-dot">Active</span>
             </div>
-            
-            <div className="webcam-frame" style={{ position: 'relative', overflow: 'hidden', padding: 0 }}>
-              <Webcam
-                audio={false}
-                ref={webcamRef}
-                screenshotFormat="image/jpeg"
-                videoConstraints={{
-                  width: 320,
-                  height: 240,
-                  facingMode: "user"
-                }}
-                className="w-full h-full object-cover transform scale-x-[-1]"
-              />
+            <div style={{
+              background: 'var(--paper)',
+              border: '1px solid var(--line)',
+              borderRadius: 6,
+              padding: '20px 16px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 10,
+              textAlign: 'center'
+            }}>
+              <svg viewBox="0 0 48 48" width="40" height="40" fill="none">
+                <circle cx="24" cy="24" r="22" stroke="var(--oxford)" strokeWidth="1.5" />
+                <path d="M14 22 Q24 10 34 22 Q24 34 14 22Z" stroke="var(--oxford)" strokeWidth="1.5" fill="none" />
+                <circle cx="24" cy="22" r="5" fill="var(--oxford)" />
+                <circle cx="13" cy="13" r="3" fill="var(--seal)" />
+              </svg>
+              <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--ink-soft)', margin: 0 }}>
+                Proctoring active<br/>
+                <span style={{ color: 'var(--verdigris)', fontWeight: 600 }}>● Camera connected</span>
+              </p>
             </div>
             <p className="webcam-note">
-              This session is verified on the local client ledger. Face position and speech ratio are evaluated in-browser in real time.
+              On-device analysis only. Face position and attention are verified locally. No video is transmitted.
             </p>
           </div>
 

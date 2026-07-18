@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ExamGuard AI — Invigilator Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --midnight:#10161F;
+    --panel:#171F2A;
+    --line:#242C38;
+    --ink:#E9E4D8;
+    --ink-soft:#8B94A3;
+    --oxford:#6E93BE;
+    --seal:#C1616B;
+    --verdigris:#7FAE9B;
+    --gold:#D9B65B;
+    --radius:8px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Inter',sans-serif;
+    background:var(--midnight);
+    color:var(--ink);
+  }
+
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 40px;
+    border-bottom:1px solid var(--line);
+    position:sticky; top:0; background:var(--midnight); z-index:10;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand svg{ width:24px; height:24px; }
+  .brand-word{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px; letter-spacing:0.12em; font-weight:500;
+  }
+  nav{
+    display:flex; gap:4px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:4px;
+  }
+  nav button{
+    font-family:'Inter',sans-serif;
+    font-size:12.5px; font-weight:600;
+    padding:8px 16px;
+    border-radius:6px;
+    border:none;
+    background:transparent;
+    color:var(--ink-soft);
+    cursor:pointer;
+  }
+  nav button.active{ background:var(--oxford); color:var(--midnight); }
+  .header-right{ display:flex; align-items:center; gap:14px; }
+  .role-tag{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--gold);
+    border:1px solid var(--line);
+    padding:6px 12px;
+    border-radius:999px;
+  }
+  .logout{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--ink-soft);
+    background:transparent;
+    border:1px solid var(--line);
+    padding:6px 14px;
+    border-radius:999px;
+    cursor:pointer;
+  }
+
+  main{ max-width:1180px; margin:0 auto; padding:40px; }
+
+  .section-title{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:20px;
+  }
+  .section-title h2{
+    font-family:'Newsreader',serif;
+    font-weight:600; font-size:20px; margin:0;
+    display:flex; align-items:center; gap:10px;
+  }
+  .section-title .meta{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11.5px; color:var(--ink-soft);
+  }
+
+  .cohort-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(300px,1fr));
+    gap:14px;
+    margin-bottom:48px;
+  }
+  .cohort-card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-left:3px solid var(--status-color, var(--verdigris));
+    border-radius:6px;
+    padding:18px 20px;
+  }
+  .cohort-top{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+  .cohort-id{ font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:500; }
+  .status-pill{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9.5px; letter-spacing:0.08em; text-transform:uppercase;
+    padding:3px 9px; border-radius:4px;
+    color:var(--status-color, var(--verdigris));
+    border:1px solid var(--status-color, var(--verdigris));
+  }
+  .cohort-meta{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft); }
+  .cohort-meta .row{ display:flex; justify-content:space-between; padding:3px 0; }
+  .cohort-meta .flag-count{ color:var(--ink); font-weight:500; }
+  .cohort-bottom{
+    display:flex; justify-content:space-between; align-items:center;
+    margin-top:14px; padding-top:12px; border-top:1px solid var(--line);
+  }
+  .timestamp{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); }
+  .view-link{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px; letter-spacing:0.05em; text-transform:uppercase;
+    color:var(--gold); text-decoration:none; cursor:pointer;
+  }
+
+  .incident-list{ display:flex; flex-direction:column; gap:10px; }
+  .incident{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:16px 20px;
+    display:flex; align-items:flex-start; gap:14px;
+  }
+  .incident-icon{
+    width:28px; height:28px; border-radius:50%;
+    border:1.5px solid var(--seal);
+    display:flex; align-items:center; justify-content:center;
+    color:var(--seal); font-size:13px; flex-shrink:0; margin-top:2px;
+  }
+  .incident-body{ flex:1; }
+  .incident-top{ display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+  .student-badge{
+    font-family:'IBM Plex Mono',monospace; font-size:11px;
+    color:var(--oxford);
+    background:rgba(110,147,190,0.12);
+    padding:2px 8px; border-radius:4px;
+  }
+  .incident-time{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); }
+  .incident-type{ font-size:14px; font-weight:600; margin-bottom:3px; }
+  .incident-conf{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft); }
+
+  .live-tag{
+    font-family:'IBM Plex Mono',monospace; font-size:9.5px; letter-spacing:0.08em;
+    color:var(--seal); border:1px solid var(--seal); padding:3px 9px; border-radius:4px;
+  }
+
+  @media (max-width:860px){
+    header{ padding:14px 20px; flex-wrap:wrap; gap:12px; }
+    main{ padding:24px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M20 2 L23.5 6.5 L29 5 L29.5 10.7 L35 12.5 L32 17.5 L35 22.5 L29.5 24.3 L29 30 L23.5 28.5 L20 33 L16.5 28.5 L11 30 L10.5 24.3 L5 22.5 L8 17.5 L5 12.5 L10.5 10.7 L11 5 L16.5 6.5 Z"
+        stroke="#D9B65B" stroke-width="1.4" fill="#171F2A"/>
+      <text x="20" y="21.5" text-anchor="middle" font-family="Newsreader, serif" font-size="10" font-weight="600" fill="#D9B65B">EG</text>
+    </svg>
+    <span class="brand-word">EXAMGUARD LEDGER</span>
+  </div>
+  <nav>
+    <button class="active">Live Monitor</button>
+    <button>Model Benchmarks</button>
+    <button>Session Reports</button>
+  </nav>
+  <div class="header-right">
+    <span class="role-tag">Authorized Invigilator</span>
+    <button class="logout">Logout</button>
+  </div>
+</header>
+
+<main>
+  <div class="section-title">
+    <h2>Active exam cohorts</h2>
+    <span class="meta">3 students online</span>
+  </div>
+
+  <div class="cohort-grid">
+    <div class="cohort-card" style="--status-color:var(--verdigris)">
+      <div class="cohort-top">
+        <span class="cohort-id">TEST-STUDENT-01</span>
+        <span class="status-pill">Green</span>
+      </div>
+      <div class="cohort-meta">
+        <div class="row"><span>Session</span><span>9ddea517-9277-462b…</span></div>
+        <div class="row"><span>Flags</span><span class="flag-count">0</span></div>
+      </div>
+      <div class="cohort-bottom">
+        <span class="timestamp">🕒 3:18:39 AM</span>
+        <span class="view-link">View ledger →</span>
+      </div>
+    </div>
+
+    <div class="cohort-card" style="--status-color:var(--gold)">
+      <div class="cohort-top">
+        <span class="cohort-id">TEST-STUDENT-01</span>
+        <span class="status-pill">Yellow</span>
+      </div>
+      <div class="cohort-meta">
+        <div class="row"><span>Session</span><span>722931c1-e874-456c…</span></div>
+        <div class="row"><span>Flags</span><span class="flag-count">3</span></div>
+      </div>
+      <div class="cohort-bottom">
+        <span class="timestamp">🕒 3:21:21 AM</span>
+        <span class="view-link">View ledger →</span>
+      </div>
+    </div>
+
+    <div class="cohort-card" style="--status-color:var(--gold)">
+      <div class="cohort-top">
+        <span class="cohort-id">MITS-CS-2026-08</span>
+        <span class="status-pill">Yellow</span>
+      </div>
+      <div class="cohort-meta">
+        <div class="row"><span>Session</span><span>c5eab210-2d51-47b2…</span></div>
+        <div class="row"><span>Flags</span><span class="flag-count">1</span></div>
+      </div>
+      <div class="cohort-bottom">
+        <span class="timestamp">🕒 6:25:04 PM</span>
+        <span class="view-link">View ledger →</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">
+    <h2>Incident log stream</h2>
+    <span class="live-tag">Live feed</span>
+  </div>
+
+  <div class="incident-list">
+    <div class="incident">
+      <div class="incident-icon">✕</div>
+      <div class="incident-body">
+        <div class="incident-top">
+          <span class="student-badge">MITS-CS-2026-08</span>
+          <span class="incident-time">6:25:16 PM</span>
+        </div>
+        <div class="incident-type">Interface violation (tab switch)</div>
+        <div class="incident-conf">Confidence: 100%</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+</body>
+</html>
