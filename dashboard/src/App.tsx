@@ -215,10 +215,13 @@ export default function App() {
   // Selected details for modal view
   const [selectedAlert, setSelectedAlert] = useState<AlertPayload | null>(null);
 
+  // Selected student in Live Monitor for detail drawer
+  const [selectedStudent, setSelectedStudent] = useState<ActiveSession | null>(null);
+
   // Reports state
   const [reportStudentId, setReportStudentId] = useState("");
   const [selectedSessionId, setSelectedSessionId] = useState("");
-  const [searchedSessions, setSearchedSessions] = useState<ActiveSession[]>([]);
+  const [searchedSessions, setSearchedSessions] = useState<any[]>([]);
   const [sessionReport, setSessionReport] = useState<HistoricalReport | null>(null);
 
   // Handle simple JWT authentication simulation
@@ -250,12 +253,17 @@ export default function App() {
     fetchActive();
     const interval = setInterval(fetchActive, 5000); // Poll list of active sessions every 5s
 
-    // Connect to dashboard alerts WebSocket
-    const socket = new WebSocket("ws://localhost:8000/dashboard/alerts");
+    // Connect to dashboard alerts WebSocket with auto-reconnect
+    let socket: WebSocket;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-    socket.onopen = () => {
-      console.log("[DASHBOARD] Alerts WebSocket connected.");
-    };
+    const connectWS = () => {
+      socket = new WebSocket("ws://localhost:8000/dashboard/alerts");
+
+      socket.onopen = () => {
+        console.log("[DASHBOARD] Alerts WebSocket connected.");
+        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      };
 
     socket.onmessage = (event) => {
       const data = JSON.parse(event.data);
@@ -344,13 +352,18 @@ export default function App() {
       }
     };
 
-    socket.onclose = () => {
-      console.log("[DASHBOARD] Alerts WebSocket disconnected.");
+      socket.onclose = () => {
+        console.log("[DASHBOARD] Alerts WebSocket disconnected. Reconnecting in 3s...");
+        reconnectTimer = setTimeout(connectWS, 3000);
+      };
     };
+
+    connectWS();
 
     return () => {
       clearInterval(interval);
-      socket.close();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      socket?.close();
     };
   }, [isAuthenticated]);
 
@@ -396,21 +409,18 @@ export default function App() {
     }
   };
 
-  // Search historical sessions
+  // Search completed sessions by student ID
   const searchSessions = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reportStudentId.trim()) return;
 
     try {
-      const res = await fetch("http://localhost:8000/session/active");
+      const res = await fetch(`http://localhost:8000/sessions?student_id=${encodeURIComponent(reportStudentId.trim())}`);
       if (res.ok) {
         const data = await res.json();
-        const matches = data.filter((s: any) => 
-          s.student_id.toLowerCase().includes(reportStudentId.toLowerCase())
-        );
-        setSearchedSessions(matches);
-        if (matches.length === 0) {
-          alert("No records matching this student ID found in SQLite database logs.");
+        setSearchedSessions(data);
+        if (data.length === 0) {
+          alert("No completed sessions found for this student ID.");
         }
       }
     } catch (err) {
@@ -727,6 +737,7 @@ export default function App() {
       {/* MAIN WORKSPACE */}
       <main>
         {currentView === "live" ? (
+          <>
           <div>
             {/* Active Exam Cohorts */}
             <div className="section-title">
@@ -753,7 +764,9 @@ export default function App() {
                   <div
                     key={session.session_id}
                     className="cohort-card"
+                    onClick={() => setSelectedStudent(session)}
                     style={{
+                      cursor: 'pointer',
                       "--status-color":
                         session.status_color === "red"
                           ? "var(--seal)"
@@ -891,211 +904,164 @@ export default function App() {
               )}
             </div>
           </div>
+
+          {/* Student Detail Drawer */}
+          {selectedStudent && (
+            <div style={{
+              position: 'fixed', top: 0, right: 0, bottom: 0, width: 420,
+              background: 'var(--panel)', borderLeft: '1px solid var(--line)',
+              zIndex: 200, display: 'flex', flexDirection: 'column',
+              boxShadow: '-8px 0 40px rgba(0,0,0,0.4)'
+            }}>
+              {/* Drawer header */}
+              <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, textTransform: 'uppercase', color: 'var(--gold)', letterSpacing: '0.15em', marginBottom: 4 }}>Live student</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)' }}>{selectedStudent.student_id}</div>
+                  <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, color: 'var(--ink-soft)', marginTop: 2 }}>{selectedStudent.session_id.substring(0, 20)}…</div>
+                </div>
+                <button onClick={() => setSelectedStudent(null)} style={{ background: 'none', border: '1px solid var(--line)', borderRadius: 6, padding: '6px 12px', color: 'var(--ink-soft)', cursor: 'pointer', fontFamily: "'IBM Plex Mono', monospace", fontSize: 10 }}>Close</button>
+              </div>
+
+              {/* Live feed thumbnail */}
+              <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--line)' }}>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, textTransform: 'uppercase', color: 'var(--ink-soft)', letterSpacing: '0.1em', marginBottom: 10 }}>Live webcam feed</div>
+                {liveFeeds[selectedStudent.session_id] ? (
+                  <div style={{ position: 'relative', borderRadius: 8, overflow: 'hidden' }}>
+                    <img
+                      src={liveFeeds[selectedStudent.session_id]}
+                      alt="Live student feed"
+                      style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block', transform: 'scaleX(-1)' }}
+                    />
+                    <span style={{ position: 'absolute', top: 8, left: 8, background: 'var(--seal)', color: '#fff', fontFamily: "'IBM Plex Mono', monospace", fontSize: 8, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', padding: '3px 7px', borderRadius: 4 }}>● Live</span>
+                  </div>
+                ) : (
+                  <div style={{ aspectRatio: '4/3', border: '1px dashed var(--line)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink-soft)', fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, textTransform: 'uppercase' }}>
+                    Awaiting first heartbeat…
+                  </div>
+                )}
+              </div>
+
+              {/* Session stats */}
+              <div style={{ padding: '14px 24px', borderBottom: '1px solid var(--line)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ background: 'var(--midnight)', borderRadius: 6, padding: '10px 14px' }}>
+                  <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 8, textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: 4 }}>Flags</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: selectedStudent.alert_count > 3 ? 'var(--seal)' : selectedStudent.alert_count > 0 ? 'var(--gold)' : 'var(--verdigris)' }}>{selectedStudent.alert_count}</div>
+                </div>
+                <div style={{ background: 'var(--midnight)', borderRadius: 6, padding: '10px 14px' }}>
+                  <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 8, textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: 4 }}>Started</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink)' }}>{new Date(selectedStudent.start_time).toLocaleTimeString()}</div>
+                </div>
+              </div>
+
+              {/* Per-student incident log */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '14px 24px' }}>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, textTransform: 'uppercase', color: 'var(--ink-soft)', letterSpacing: '0.1em', marginBottom: 12 }}>Incident log</div>
+                {liveAlerts.filter(a => a.session_id === selectedStudent.session_id).length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 24, color: 'var(--ink-soft)', fontSize: 12, fontStyle: 'italic' }}>No incidents logged yet.</div>
+                ) : (
+                  liveAlerts.filter(a => a.session_id === selectedStudent.session_id).map((alert, i) => (
+                    <div key={i} style={{ background: 'var(--midnight)', border: '1px solid var(--line)', borderRadius: 6, padding: '10px 14px', marginBottom: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: 'var(--seal)', textTransform: 'uppercase', fontWeight: 700 }}>Flag #{i + 1}</span>
+                        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: 'var(--ink-soft)' }}>{new Date(alert.timestamp).toLocaleTimeString()}</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--ink)', lineHeight: 1.4 }}>{alert.anomaly_type}</div>
+                      <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: 'var(--ink-soft)', marginTop: 4 }}>Conf: {alert.confidence}%</div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* View full report button */}
+              <div style={{ padding: '16px 24px', borderTop: '1px solid var(--line)' }}>
+                <button
+                  onClick={() => { setCurrentView('reports'); loadSessionReport(selectedStudent.session_id); setSelectedStudent(null); }}
+                  style={{ width: '100%', background: 'var(--oxford)', color: 'var(--midnight)', border: 'none', borderRadius: 6, padding: '11px', fontFamily: "'Inter', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  View full proctoring report →
+                </button>
+              </div>
+            </div>
+          )}
+          </>
         ) : currentView === "benchmarks" ? (
+          /* Benchmarks: clean comparison table + grouped bar chart */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div className="section-title" style={{ marginBottom: 0 }}>
               <h2>Model performance matrix</h2>
-              <span className="meta">tested architectures</span>
+              <span className="meta">5 architectures benchmarked on ExamGuard dataset</span>
             </div>
 
-            {/* Matrix comparison top block */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-              gap: '24px',
-              background: 'var(--panel)',
-              border: '1px solid var(--line)',
-              borderRadius: '6px',
-              padding: '24px'
-            }}>
-              {/* Statistical Table */}
-              <div style={{ gridColumn: 'span 2' }}>
-                <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: '14px', letterSpacing: '0.1em' }}>
-                  Statistical benchmark matrix
-                </h3>
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: "'IBM Plex Mono', monospace", fontSize: '12px' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--ink-soft)', textAlign: 'left' }}>
-                        <th style={{ padding: '8px 0' }}>Pipeline</th>
-                        <th>Precision</th>
-                        <th>Recall</th>
-                        <th>mAP @ 0.5</th>
-                        <th>Size</th>
-                        <th>Latency</th>
-                      </tr>
-                    </thead>
-                    <tbody style={{ color: 'var(--ink-soft)' }}>
-                      {BENCHMARK_MODELS.map((model, idx) => (
-                        <tr
-                          key={idx}
-                          onClick={() => setBenchmarkModelIdx(idx)}
-                          style={{
-                            borderBottom: '1px solid rgba(36,44,56,0.5)',
-                            cursor: 'pointer',
-                            color: benchmarkModelIdx === idx ? 'var(--ink)' : 'inherit',
-                            fontWeight: benchmarkModelIdx === idx ? 600 : 400
-                          }}
-                        >
-                          <td style={{ padding: '12px 0', fontFamily: "'Inter', sans-serif", display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: model.color }}></span>
-                            {model.name}
-                          </td>
-                          <td>{model.precision.toFixed(1)}%</td>
-                          <td>{model.recall.toFixed(1)}%</td>
-                          <td style={{ color: 'var(--oxford)' }}>{model.map.toFixed(1)}%</td>
-                          <td>{model.params}</td>
-                          <td>{model.latency} ms</td>
-                        </tr>
+            {/* Compact model comparison table */}
+            <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
+              <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: '18px', letterSpacing: '0.1em' }}>Accuracy comparison</h3>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: "'IBM Plex Mono', monospace", fontSize: '12px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--ink-soft)', textAlign: 'left' }}>
+                      {['Model', 'Precision', 'Recall', 'mAP@0.5', 'Params', 'Latency (ms)'].map(h => (
+                        <th key={h} style={{ padding: '8px 16px 8px 0', fontWeight: 500, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase' }}>{h}</th>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Champion Card Overhaul */}
-              <div style={{
-                background: 'var(--midnight)',
-                border: '1px solid var(--line)',
-                borderLeft: '3px solid var(--gold)',
-                borderRadius: '6px',
-                padding: '20px',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                gap: '14px'
-              }}>
-                <div>
-                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', textTransform: 'uppercase', color: 'var(--gold)', letterSpacing: '0.1em', fontWeight: 600 }}>
-                    Recommended deployment
-                  </span>
-                  <h4 style={{ fontFamily: "'Newsreader', serif", fontSize: '18px', fontWeight: 600, margin: '6px 0 0 0' }}>
-                    YOLOv5 Champion
-                  </h4>
-                </div>
-                <p style={{ fontSize: '12.5px', color: 'var(--ink-soft)', lineHeight: 1.5, margin: 0 }}>
-                  Achieved peak accuracy of <strong>95.4% mAP</strong> with sub-20ms latency. Suited for standardized high-stakes exam tracking.
-                </p>
-                <div style={{ borderTop: '1px solid var(--line)', paddingTop: '12px', fontSize: '11px', fontFamily: "'IBM Plex Mono', monospace", color: 'var(--gold)' }}>
-                  Latency: 18 ms · Params: 7.2M
-                </div>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {BENCHMARK_MODELS.map((m, i) => (
+                      <tr
+                        key={m.name}
+                        onClick={() => setBenchmarkModelIdx(i)}
+                        style={{
+                          borderBottom: '1px solid var(--line)',
+                          cursor: 'pointer',
+                          background: benchmarkModelIdx === i ? 'rgba(255,255,255,0.04)' : 'transparent',
+                          transition: 'background .15s'
+                        }}
+                      >
+                        <td style={{ padding: '12px 16px 12px 0', fontWeight: 600, color: m.color }}>
+                          {m.name}
+                          {i === 4 && <span style={{ marginLeft: 6, fontSize: 8, background: 'var(--verdigris)', color: '#fff', borderRadius: 3, padding: '2px 5px', fontWeight: 700, textTransform: 'uppercase' }}>Best</span>}
+                        </td>
+                        <td style={{ padding: '12px 16px 12px 0', color: 'var(--ink)' }}>{m.precision}%</td>
+                        <td style={{ padding: '12px 16px 12px 0', color: 'var(--ink)' }}>{m.recall}%</td>
+                        <td style={{ padding: '12px 16px 12px 0', color: 'var(--ink)', fontWeight: 700 }}>{m.map}%</td>
+                        <td style={{ padding: '12px 16px 12px 0', color: 'var(--ink-soft)' }}>{m.params}</td>
+                        <td style={{ padding: '12px 16px 12px 0', color: m.latency < 25 ? 'var(--verdigris)' : m.latency > 100 ? 'var(--seal)' : 'var(--gold)' }}>{m.latency}ms</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
 
-            {/* Graphs Sub-Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-              <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
-                <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: '14px', letterSpacing: '0.15em' }}>
-                  mAP Accuracy distribution
-                </h3>
-                <div style={{ height: '220px' }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={BENCHMARK_MODELS} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
-                      <XAxis dataKey="name" stroke="var(--ink-soft)" fontSize={9} />
-                      <YAxis stroke="var(--ink-soft)" fontSize={9} domain={[80, 100]} />
-                      <Tooltip contentStyle={{ backgroundColor: 'var(--panel)', border: '1px solid var(--line)', color: 'var(--ink)' }} />
-                      <Area type="monotone" dataKey="map" name="mAP @ 0.5" stroke="var(--oxford)" fill="var(--oxford)" fillOpacity={0.08} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
-                <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: '14px', letterSpacing: '0.15em' }}>
-                  Edge inference latency (ms)
-                </h3>
-                <div style={{ height: '220px' }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={BENCHMARK_MODELS} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--line)" />
-                      <XAxis dataKey="name" stroke="var(--ink-soft)" fontSize={9} />
-                      <YAxis stroke="var(--ink-soft)" fontSize={9} />
-                      <Tooltip contentStyle={{ backgroundColor: 'var(--panel)', border: '1px solid var(--line)', color: 'var(--ink)' }} />
-                      <Area type="monotone" dataKey="latency" name="Latency (ms)" stroke="var(--seal)" fill="var(--seal)" fillOpacity={0.08} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-
-            {/* Matrix confusion diagonal verdigris override */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-              <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--line)', paddingBottom: '12px', marginBottom: '16px' }}>
-                  <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', letterSpacing: '0.1em', margin: 0 }}>
-                    Precision-Recall Curve
-                  </h3>
-                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', color: 'var(--oxford)' }}>
-                    {BENCHMARK_MODELS[benchmarkModelIdx].name}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'center', background: 'rgba(16,22,31,0.4)', borderRadius: '4px', border: '1px solid rgba(36,44,56,0.5)', padding: '16px', aspectRatio: '16/9' }}>
-                  <svg className="w-full h-full max-w-xs" viewBox="0 0 100 100">
-                    <line x1="10" y1="10" x2="90" y2="10" stroke="var(--line)" strokeWidth="0.5" />
-                    <line x1="10" y1="30" x2="90" y2="30" stroke="var(--line)" strokeWidth="0.5" />
-                    <line x1="10" y1="50" x2="90" y2="50" stroke="var(--line)" strokeWidth="0.5" />
-                    <line x1="10" y1="70" x2="90" y2="70" stroke="var(--line)" strokeWidth="0.5" />
-                    <line x1="10" y1="90" x2="90" y2="90" stroke="var(--ink-soft)" strokeWidth="0.75" />
-                    <line x1="10" y1="10" x2="10" y2="90" stroke="var(--ink-soft)" strokeWidth="0.75" />
-                    <path
-                      d={BENCHMARK_MODELS[benchmarkModelIdx].prPoints
-                        .map((pt, i) => {
-                          const x = 10 + pt.r * 80;
-                          const y = 90 - pt.p * 80;
-                          return `${i === 0 ? "M" : "L"} ${x} ${y}`;
-                        })
-                        .join(" ")}
-                      fill="none"
-                      stroke={BENCHMARK_MODELS[benchmarkModelIdx].color}
-                      strokeWidth="2"
-                    />
-                    <text x="3" y="12" fill="var(--ink-soft)" fontSize="4">1.0</text>
-                    <text x="3" y="52" fill="var(--ink-soft)" fontSize="4">0.5</text>
-                    <text x="3" y="92" fill="var(--ink-soft)" fontSize="4">0.0</text>
-                    <text x="10" y="96" fill="var(--ink-soft)" fontSize="4" textAnchor="middle">0.0</text>
-                    <text x="50" y="96" fill="var(--ink-soft)" fontSize="4" textAnchor="middle">0.5</text>
-                    <text x="90" y="96" fill="var(--ink-soft)" fontSize="4" textAnchor="middle">1.0</text>
-                  </svg>
-                </div>
-              </div>
-
-              <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
-                <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: '14px', letterSpacing: '0.1em' }}>
-                  Confusion Matrix
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '4px', background: 'rgba(16,22,31,0.3)', padding: '16px', borderRadius: '4px', border: '1px solid rgba(36,44,56,0.5)', fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', textAlign: 'center', alignItems: 'center' }}>
-                  <div style={{ color: 'var(--ink-soft)', fontWeight: 'bold' }}>Act\Pred</div>
-                  <div style={{ color: 'var(--ink-soft)' }}>Normal</div>
-                  <div style={{ color: 'var(--ink-soft)' }}>Device</div>
-                  <div style={{ color: 'var(--ink-soft)' }}>Head</div>
-                  <div style={{ color: 'var(--ink-soft)' }}>Multi</div>
-                  <div style={{ color: 'var(--ink-soft)' }}>Talk</div>
-                  {["Normal", "Device", "Head", "Multi", "Talk"].map((actual, rowIdx) => (
-                    <React.Fragment key={rowIdx}>
-                      <div style={{ color: 'var(--ink-soft)', textAlign: 'left', fontWeight: 'bold' }}>{actual}</div>
-                      {BENCHMARK_MODELS[benchmarkModelIdx].confusion[rowIdx].map((val, colIdx) => {
-                        const isDiagonal = rowIdx === colIdx;
-                        return (
-                          <div
-                            key={colIdx}
-                            style={{
-                              padding: '8px 0',
-                              borderRadius: '4px',
-                              border: '1px solid transparent',
-                              fontWeight: 'bold',
-                              backgroundColor: isDiagonal ? 'var(--verdigris)' : 'rgba(16,22,31,0.2)',
-                              color: isDiagonal ? 'var(--midnight)' : 'var(--ink-soft)',
-                              borderColor: isDiagonal ? 'var(--verdigris)' : 'transparent'
-                            }}
-                          >
-                            {val}%
+            {/* Visual grouped bar chart for Precision / Recall / mAP */}
+            <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
+              <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: '18px', letterSpacing: '0.1em' }}>Visual metric comparison</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {BENCHMARK_MODELS.map((m) => (
+                  <div key={m.name}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+                      <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: m.color, width: 170, flexShrink: 0, fontWeight: 600 }}>{m.name}</span>
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {[{label:'P', val:m.precision,color:'var(--oxford)'},{label:'R',val:m.recall,color:'var(--gold)'},{label:'mAP',val:m.map,color:'var(--verdigris)'}].map(({label,val,color}) => (
+                          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 8, color: 'var(--ink-soft)', width: 26, textAlign: 'right' }}>{label}</span>
+                            <div style={{ flex: 1, background: 'rgba(255,255,255,0.05)', borderRadius: 3, overflow: 'hidden', height: 10 }}>
+                              <div style={{ width: `${val}%`, height: '100%', background: color, borderRadius: 3, transition: 'width .6s ease' }} />
+                            </div>
+                            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: 'var(--ink-soft)', width: 38, textAlign: 'right' }}>{val}%</span>
                           </div>
-                        );
-                      })}
-                    </React.Fragment>
-                  ))}
-                </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 20, marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
+                {[{label:'Precision',color:'var(--oxford)'},{label:'Recall',color:'var(--gold)'},{label:'mAP@0.5',color:'var(--verdigris)'}].map(l => (
+                  <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: 'var(--ink-soft)' }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 2, background: l.color, display: 'inline-block' }} />{l.label}
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -1280,7 +1246,7 @@ export default function App() {
                 gap: '32px',
                 alignItems: 'start'
               }}>
-                {/* Slim Left Rail */}
+                {/* Report metadata — aligned grid */}
                 <div style={{
                   background: 'var(--panel)',
                   border: '1px solid var(--line)',
@@ -1288,64 +1254,27 @@ export default function App() {
                   padding: '24px',
                   fontFamily: "'IBM Plex Mono', monospace",
                   fontSize: '11px',
-                  color: 'var(--ink-soft)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '16px'
+                  color: 'var(--ink-soft)'
                 }}>
-                  <span style={{ fontSize: '9px', textTransform: 'uppercase', color: 'var(--gold)', fontWeight: 600 }}>
-                    Report metadata
-                  </span>
-                  <div>
-                    <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', opacity: 0.7 }}>Student ID</span>
-                    <strong style={{ color: 'var(--ink)', fontSize: '13px' }}>{sessionReport.student_id}</strong>
+                  <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: 'var(--gold)', fontWeight: 600, letterSpacing: '0.15em', marginBottom: 18 }}>Report metadata</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', rowGap: 14 }}>
+                    {[
+                      ['Student', sessionReport.student_id],
+                      ['Session', sessionReport.session_id.substring(0, 20) + '…'],
+                      ['Status', sessionReport.status.toUpperCase()],
+                      ['Started', new Date(sessionReport.start_time).toLocaleString()],
+                      ['Ended', sessionReport.end_time ? new Date(sessionReport.end_time).toLocaleString() : '—'],
+                      ['Flags', String(sessionReport.total_alerts)]
+                    ].map(([label, value]) => (
+                      <React.Fragment key={label}>
+                        <span style={{ fontSize: 9, textTransform: 'uppercase', opacity: 0.6, letterSpacing: '0.08em', paddingTop: 2 }}>{label}</span>
+                        <span style={{ color: label === 'Status' ? (sessionReport.status === 'completed' ? 'var(--verdigris)' : 'var(--gold)') : label === 'Flags' && sessionReport.total_alerts > 0 ? 'var(--seal)' : 'var(--ink)', fontWeight: label === 'Student' || label === 'Flags' ? 600 : 400, wordBreak: 'break-all', lineHeight: 1.4 }}>{value}</span>
+                      </React.Fragment>
+                    ))}
                   </div>
-                  <div>
-                    <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', opacity: 0.7 }}>Session Hash</span>
-                    <span style={{ color: 'var(--ink)', wordBreak: 'break-all' }}>{sessionReport.session_id}</span>
-                  </div>
-                  <div>
-                    <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', opacity: 0.7 }}>Start Time</span>
-                    <span style={{ color: 'var(--ink)' }}>{new Date(sessionReport.start_time).toLocaleString()}</span>
-                  </div>
-                  <div>
-                    <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', opacity: 0.7 }}>End Time</span>
-                    <span style={{ color: 'var(--ink)' }}>
-                      {sessionReport.end_time ? new Date(sessionReport.end_time).toLocaleString() : 'Active'}
-                    </span>
-                  </div>
-                  <div style={{ borderTop: '1px solid var(--line)', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <button
-                      onClick={exportCSV}
-                      style={{
-                        background: 'var(--midnight)',
-                        border: '1px solid var(--line)',
-                        color: 'var(--ink)',
-                        borderRadius: '4px',
-                        padding: '8px 12px',
-                        cursor: 'pointer',
-                        fontSize: '10px',
-                        fontFamily: "'IBM Plex Mono', monospace"
-                      }}
-                    >
-                      Export CSV
-                    </button>
-                    <button
-                      onClick={() => window.print()}
-                      style={{
-                        background: 'var(--oxford)',
-                        color: 'var(--midnight)',
-                        border: 'none',
-                        borderRadius: '4px',
-                        padding: '8px 12px',
-                        cursor: 'pointer',
-                        fontSize: '10px',
-                        fontWeight: 600,
-                        fontFamily: "'Inter', sans-serif"
-                      }}
-                    >
-                      Print report
-                    </button>
+                  <div style={{ borderTop: '1px solid var(--line)', paddingTop: 16, marginTop: 18, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <button onClick={exportCSV} style={{ background: 'var(--midnight)', border: '1px solid var(--line)', color: 'var(--ink)', borderRadius: 4, padding: '8px 12px', cursor: 'pointer', fontSize: 10, fontFamily: "'IBM Plex Mono', monospace" }}>Export CSV</button>
+                    <button onClick={() => window.print()} style={{ background: 'var(--oxford)', color: 'var(--midnight)', border: 'none', borderRadius: 4, padding: '8px 12px', cursor: 'pointer', fontSize: 10, fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>Print report</button>
                   </div>
                 </div>
 

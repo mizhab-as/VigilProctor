@@ -2,6 +2,7 @@ import os
 import uuid
 import base64
 import json
+import asyncio
 from datetime import datetime
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -220,6 +221,32 @@ def get_active_sessions(db: Session = Depends(get_db)):
         })
     return result
 
+@app.get("/sessions")
+def get_all_sessions(student_id: str = "", db: Session = Depends(get_db)):
+    """Return completed sessions, optionally filtered by student_id substring."""
+    query = db.query(ExamSession).filter(ExamSession.status == "completed")
+    if student_id.strip():
+        query = query.filter(ExamSession.student_id.ilike(f"%{student_id.strip()}%"))
+    sessions = query.order_by(ExamSession.start_time.desc()).all()
+    result = []
+    for s in sessions:
+        alert_count = db.query(SessionAlert).filter(SessionAlert.session_id == s.id).count()
+        status_color = "green"
+        if alert_count > 3:
+            status_color = "red"
+        elif alert_count > 0:
+            status_color = "yellow"
+        result.append({
+            "session_id": s.id,
+            "student_id": s.student_id,
+            "start_time": s.start_time.isoformat(),
+            "end_time": s.end_time.isoformat() if s.end_time else None,
+            "status": s.status,
+            "alert_count": alert_count,
+            "status_color": status_color
+        })
+    return result
+
 @app.get("/session/{session_id}/report")
 def get_session_report(session_id: str, db: Session = Depends(get_db)):
     session = db.query(ExamSession).filter(ExamSession.id == session_id).first()
@@ -396,19 +423,36 @@ async def student_stream(websocket: WebSocket, session_id: str, db: Session = De
 
     except WebSocketDisconnect:
         manager.disconnect_student(session_id)
+        # Auto-complete session in DB so it disappears from active list
+        db_sess = db.query(ExamSession).filter(ExamSession.id == session_id).first()
+        if db_sess and db_sess.status == "active":
+            db_sess.status = "completed"
+            db_sess.end_time = datetime.utcnow()
+            db.commit()
+            await manager.broadcast_to_dashboards({
+                "type": "session_status",
+                "session_id": session_id,
+                "student_id": db_sess.student_id,
+                "status": "completed",
+                "end_time": db_sess.end_time.isoformat()
+            })
     except Exception as e:
         print(f"[ERROR] WebSocket connection error on session {session_id}: {e}")
         manager.disconnect_student(session_id)
 
-# WebSocket endpoint for dashboard
+# WebSocket endpoint for dashboard — with ping to detect stale connections
 @app.websocket("/dashboard/alerts")
 async def dashboard_alerts(websocket: WebSocket):
     await manager.connect_dashboard(websocket)
     try:
         while True:
-            # Maintain connection alive
-            await websocket.receive_text()
-    except WebSocketDisconnect:
+            # Send a ping every 20s; close dead connections
+            try:
+                await asyncio.wait_for(websocket.receive_text(), timeout=20.0)
+            except asyncio.TimeoutError:
+                # Send ping frame to confirm client is still alive
+                await websocket.send_json({"type": "ping"})
+    except (WebSocketDisconnect, Exception):
         manager.disconnect_dashboard(websocket)
 
 @app.post("/session/{session_id}/alert/{alert_id}/video")

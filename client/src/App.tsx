@@ -724,9 +724,6 @@ export default function App() {
     setAnswers((prev) => ({ ...prev, [questionId]: idx }));
   };
 
-  const dismissWarning = (index: number) => {
-    setWarnings((prev) => prev.filter((_, i) => i !== index));
-  };
 
   if (examSubmitted) {
     return (
@@ -888,31 +885,69 @@ export default function App() {
 
   return (
     <div style={{ height: '100vh', background: 'var(--paper)', display: 'flex', flexDirection: 'column', fontFamily: "'Inter', sans-serif", color: 'var(--ink)', overflow: 'hidden' }}>
-      {/* Top Banner Warnings Overlay — clean active voice */}
+      {/* FULLSCREEN VIOLATION BANNER — prominent, cannot be missed */}
       {warnings.length > 0 && (
-        <div className="fixed top-20 right-6 z-50 w-full max-w-sm space-y-3 print-hidden animate-slide-in">
-          {warnings.map((warn, index) => (
-            <div
-              key={index}
-              className="bg-white border border-[var(--line)] rounded-lg p-4 flex gap-3 shadow-md relative overflow-hidden"
-            >
-              <div className="absolute top-0 left-0 w-1 h-full bg-[var(--seal)]"></div>
-              <div className="flex-1 space-y-1">
-                <h4 className="font-mono text-[10px] font-bold text-[var(--seal)] uppercase tracking-wider">
-                  System alert
-                </h4>
-                <p className="text-xs text-[var(--ink)] leading-normal">
-                  {warn.replace(/Security Warning:\s*/i, "").replace(/!+$/, "")}
-                </p>
-              </div>
-              <button
-                onClick={() => dismissWarning(index)}
-                className="font-mono text-[9.5px] font-bold text-[var(--ink-soft)] hover:text-[var(--ink)] self-start uppercase px-2 py-0.5 rounded border border-[var(--line)]"
-              >
-                Dismiss
-              </button>
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(140, 47, 57, 0.92)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          fontFamily: "'Inter', sans-serif",
+          animation: 'violation-in 0.2s ease-out forwards'
+        }}>
+          {/* Pulse ring */}
+          <div style={{
+            width: 72, height: 72, borderRadius: '50%',
+            border: '2px solid rgba(255,255,255,0.4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            marginBottom: 24,
+            animation: 'pulse-ring 1.4s ease-out infinite'
+          }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+              <path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+
+          <div style={{
+            fontFamily: "'IBM Plex Mono', monospace",
+            fontSize: 10, letterSpacing: '0.25em', textTransform: 'uppercase',
+            color: 'rgba(255,255,255,0.6)', marginBottom: 12
+          }}>
+            Exam Integrity Violation
+          </div>
+
+          <div style={{
+            fontSize: 20, fontWeight: 700, color: '#fff',
+            textAlign: 'center', maxWidth: 480, lineHeight: 1.4,
+            marginBottom: 8, padding: '0 32px'
+          }}>
+            {warnings[0].replace(/Security Warning:\s*/i, '').replace(/!+$/, '')}
+          </div>
+
+          {warnings.length > 1 && (
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', marginBottom: 24 }}>
+              +{warnings.length - 1} additional incident{warnings.length > 2 ? 's' : ''} recorded
             </div>
-          ))}
+          )}
+
+          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', marginBottom: 32, textAlign: 'center' }}>
+            This violation has been logged and sent to your invigilator.
+          </div>
+
+          <button
+            onClick={() => setWarnings([])}
+            style={{
+              background: '#fff', color: '#8C2F39',
+              border: 'none', borderRadius: 8,
+              padding: '12px 36px', fontSize: 13, fontWeight: 700,
+              cursor: 'pointer', letterSpacing: '0.02em',
+              fontFamily: "'Inter', sans-serif"
+            }}
+          >
+            I understand — Return to exam
+          </button>
         </div>
       )}
 
