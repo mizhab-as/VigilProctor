@@ -315,7 +315,7 @@ main {
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 20px 24px;
+  padding: 26px 32px;
 }
 
 .q-meta {
@@ -332,9 +332,9 @@ main {
 .q-text {
   font-family: 'Newsreader', serif;
   font-weight: 600;
-  font-size: 17px;
-  line-height: 1.45;
-  margin: 0 0 16px 0;
+  font-size: 19.5px;
+  line-height: 1.5;
+  margin: 0 0 20px 0;
   color: var(--ink);
 }
 
@@ -342,11 +342,11 @@ main {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 13px 18px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  margin-bottom: 7px;
-  font-size: 13px;
+  margin-bottom: 10px;
+  font-size: 13.5px;
   cursor: pointer;
   transition: border-color .15s ease, background .15s ease;
   color: var(--ink);
