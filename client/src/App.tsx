@@ -66,6 +66,8 @@ export default function App() {
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [examSubmitted, setExamSubmitted] = useState(false);
   const [modelLoading, setModelLoading] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
+  const [modelReady, setModelReady] = useState(false);
 
   const webcamRef = useRef<Webcam>(null);
   const ortSessionRef = useRef<ort.InferenceSession | null>(null);
@@ -98,9 +100,11 @@ export default function App() {
   const initializeEngines = async () => {
     try {
       setModelLoading(true);
+      setModelError(null);
       console.log("[ort] Loading model.onnx...");
       const session = await ort.InferenceSession.create("/model.onnx");
       ortSessionRef.current = session;
+      setModelReady(true);
       console.log("[ort] Model loaded successfully.");
 
       // Setup MediaPipe Face Mesh from window object (CDN)
@@ -124,8 +128,9 @@ export default function App() {
       } else {
         console.warn("[MediaPipe] FaceMesh script is not loaded from CDN.");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("[ort/MediaPipe] Engine initialization failed:", err);
+      setModelError(err?.message || "Failed to load detection engine");
     } finally {
       setModelLoading(false);
     }
@@ -783,7 +788,7 @@ export default function App() {
                   <span>Local detection engine</span>
                   {modelLoading ? (
                     <span className="status" style={{ color: '#B8912F' }}>Loading…</span>
-                  ) : ortSessionRef.current ? (
+                  ) : modelReady ? (
                     <span className="status ready">Ready</span>
                   ) : (
                     <span className="status offline">Offline</span>
@@ -791,12 +796,19 @@ export default function App() {
                 </div>
                 <div className="sensor-row">
                   <span>Face tracking</span>
-                  {faceMeshRef.current ? (
+                  {modelLoading ? (
+                    <span className="status" style={{ color: '#B8912F' }}>Loading…</span>
+                  ) : faceMeshRef.current ? (
                     <span className="status ready">Connected</span>
                   ) : (
                     <span className="status offline">Disconnected</span>
                   )}
                 </div>
+                {modelError && (
+                  <p className="sensor-note" style={{ color: '#8C2F39' }}>
+                    Engine error: {modelError}. Exam will run without AI proctoring.
+                  </p>
+                )}
                 <p className="sensor-note">
                   Analysis runs on your device. No continuous audio or video leaves your browser — only brief violation keyframes are sent for the record.
                 </p>
@@ -804,10 +816,10 @@ export default function App() {
 
               <button
                 type="submit"
-                disabled={modelLoading || !ortSessionRef.current}
+                disabled={modelLoading}
                 className="btn-primary"
               >
-                Start exam
+                {modelLoading ? 'Loading engines…' : 'Start exam'}
               </button>
             </form>
           </div>
