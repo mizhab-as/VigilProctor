@@ -1,38 +1,63 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --midnight: #10161F;
+  --panel: #171F2A;
+  --ink-inv: #E9E4D8;
+  --oxford-light: #6E93BE;
+  --seal-light: #C1616B;
+  --verdigris-light: #7FAE9B;
+  --gold-light: #D9B65B;
+}
+
 body {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Inter', sans-serif;
   margin: 0;
-  background-color: #050814;
-  color: #f1f5f9;
+  background-color: var(--midnight);
+  color: var(--ink-inv);
   min-height: 100vh;
   overflow-x: hidden;
 }
 
-/* Glassmorphism custom styles */
-.glass-panel {
-  background: rgba(10, 15, 30, 0.7);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+/* Custom Typographic utilities */
+.font-serif {
+  font-family: 'Newsreader', serif;
 }
 
-.glow-card {
-  box-shadow: 0 0 40px -10px rgba(79, 70, 229, 0.12);
+.font-sans {
+  font-family: 'Inter', sans-serif;
 }
 
-.glow-indigo {
-  box-shadow: 0 0 30px -5px rgba(99, 102, 241, 0.2);
+.font-mono {
+  font-family: 'IBM Plex Mono', monospace;
 }
 
-.glow-rose {
-  box-shadow: 0 0 30px -5px rgba(244, 63, 94, 0.2);
+/* Settle animation for confirmed actions / seals */
+@keyframes seal-settle {
+  0% {
+    transform: scale(1.4);
+    opacity: 0;
+    filter: drop-shadow(0 20px 20px rgba(193, 97, 107, 0.35));
+  }
+  70% {
+    transform: scale(0.95);
+    opacity: 1;
+    filter: drop-shadow(0 2px 2px rgba(193, 97, 107, 0.15));
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+    filter: drop-shadow(0 6px 12px rgba(193, 97, 107, 0.25));
+  }
 }
 
-/* Scrollbar customization */
+.seal-animated {
+  animation: seal-settle 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+/* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -48,47 +73,38 @@ body {
   background: #334155;
 }
 
+/* Focus effects styling overrides */
+.focus-oxford:focus {
+  outline: 2px solid var(--oxford-light);
+  outline-offset: 2px;
+}
+
+/* Printable PDF styles */
 @media print {
-  header, footer, nav, .print\:hidden, button, form, .fixed.inset-0 {
+  header, footer, nav, .print-hidden, button, form, .fixed.inset-0 {
     display: none !important;
   }
   body {
     background-color: white !important;
     color: #0f172a !important;
   }
-  .glass-panel {
+  .print-card {
     background: transparent !important;
-    border: none !important;
+    border: 1px solid #cbd5e1 !important;
     box-shadow: none !important;
-    backdrop-filter: none !important;
-    padding: 0 !important;
+    padding: 12px !important;
+    color: #0f172a !important;
   }
   main {
     padding: 0 !important;
     max-width: 100% !important;
     width: 100% !important;
   }
-  .grid {
-    display: block !important;
-  }
-  .lg\:grid-cols-3 {
-    display: flex !important;
-    flex-direction: column !important;
-    gap: 1.5rem !important;
-  }
-  .lg\:col-span-2, .lg\:col-span-1 {
-    width: 100% !important;
-    max-width: 100% !important;
-  }
   * {
     color: #0f172a !important;
-    border-color: #e2e8f0 !important;
+    border-color: #cbd5e1 !important;
     text-shadow: none !important;
     box-shadow: none !important;
-  }
-  .bg-slate-950, .bg-slate-950\/40, .bg-slate-950\/70, .bg-slate-900\/10 {
-    background-color: #f8fafc !important;
-    border: 1px solid #cbd5e1 !important;
   }
   svg {
     filter: brightness(0.2) !important;
@@ -96,13 +112,6 @@ body {
   img {
     border-color: #cbd5e1 !important;
     page-break-inside: avoid;
-  }
-  .text-indigo-400, .text-indigo-300, .text-cyan-400, .text-rose-400 {
-    color: #1e1b4b !important;
-    font-weight: bold !important;
-  }
-  .divide-slate-900\/60 > * {
-    border-color: #cbd5e1 !important;
   }
   tr, div {
     page-break-inside: avoid;

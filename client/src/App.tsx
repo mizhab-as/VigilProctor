@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Webcam from "react-webcam";
 import * as ort from "onnxruntime-web";
-import { Camera, AlertTriangle, ShieldCheck, Clock, CheckCircle } from "lucide-react";
+import { AlertTriangle, Clock } from "lucide-react";
 
 interface Question {
   id: number;
@@ -460,7 +460,7 @@ export default function App() {
       confidence = 0.80;
     }
 
-    if (alertType) {
+    if (alertType && webcamRef.current && ws && ws.readyState === WebSocket.OPEN) {
       const screenshot = webcamRef.current.getScreenshot();
       if (screenshot) {
         ws.send(
@@ -690,24 +690,36 @@ export default function App() {
 
   if (examSubmitted) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 font-sans">
-        <div className="w-full max-w-lg glass-panel glow-indigo rounded-3xl p-8 text-center space-y-6 animate-fade-in">
-          <div className="w-20 h-20 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full flex items-center justify-center mx-auto shadow-lg shadow-emerald-500/10">
-            <CheckCircle className="w-10 h-10" />
+      <div className="min-h-screen bg-[#F6F3EC] flex items-center justify-center p-6 font-sans text-[#1C2430]">
+        <div className="w-full max-w-md bg-white border border-[#1C2430]/10 rounded-lg p-8 text-center space-y-6 shadow-sm">
+          {/* Animated Wax-Seal Stamp */}
+          <div className="w-24 h-24 mx-auto relative">
+            <svg viewBox="0 0 100 100" className="w-full h-full seal-animated">
+              <path d="M 50 4 C 60 3, 75 7, 85 15 C 93 25, 97 40, 96 50 C 95 65, 93 75, 85 85 C 75 93, 60 97, 50 96 C 35 95, 25 93, 15 85 C 7 75, 3 60, 4 50 C 5 35, 7 25, 15 15 C 25 7, 40 3, 50 4 Z" className="fill-[#8C2F39] stroke-[#73222A] stroke-[1.5]" />
+              <circle cx="50" cy="50" r="33" className="fill-none stroke-[#B8912F] stroke-[1.5] stroke-dasharray-[1, 1]" />
+              <circle cx="50" cy="50" r="31" className="fill-none stroke-[#B8912F] stroke-[0.75]" />
+              <text x="50" y="58" className="font-serif text-2xl font-bold fill-[#F6F3EC]" textAnchor="middle">EG</text>
+              <path id="seal-text-path-sub" d="M 22 50 A 28 28 0 1 1 78 50" className="fill-none stroke-none" />
+              <text className="font-sans text-[6px] fill-[#B8912F] tracking-[0.2em] font-semibold">
+                <textPath href="#seal-text-path-sub" startOffset="50%" textAnchor="middle">
+                  EXAMGUARD • VERIFIED
+                </textPath>
+              </text>
+            </svg>
           </div>
           <div className="space-y-2">
-            <h1 className="text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-teal-400">
-              Exam Submitted Successfully
+            <h1 className="text-2xl font-serif font-bold text-[#1C2430]">
+              Exam Submitted
             </h1>
-            <p className="text-slate-400 text-sm">
-              Your session logs and answer metrics have been securely compiled and sent to the invigilator dashboard.
+            <p className="text-slate-500 text-xs">
+              Your session logs and answer metrics have been securely compiled and recorded in the invigilator ledger.
             </p>
           </div>
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-5 text-left text-sm font-mono text-slate-355 space-y-2">
-            <div><span className="text-slate-500">Student ID:</span> {studentId}</div>
-            <div><span className="text-slate-500">Session ID:</span> {sessionId}</div>
-            <div><span className="text-slate-500">Submission Time:</span> {new Date().toLocaleTimeString()}</div>
-            <div><span className="text-slate-500">Security Index:</span> Cleared</div>
+          <div className="bg-[#F6F3EC]/80 border border-[#1C2430]/10 rounded-lg p-5 text-left text-xs font-mono text-slate-700 space-y-2">
+            <div><span className="text-slate-400">Student ID:</span> {studentId}</div>
+            <div><span className="text-slate-400">Session ID:</span> {sessionId}</div>
+            <div><span className="text-slate-400">Submission Time:</span> {new Date().toLocaleTimeString()}</div>
+            <div><span className="text-slate-400">Security Index:</span> Cleared</div>
           </div>
           <button
             onClick={() => {
@@ -719,7 +731,7 @@ export default function App() {
               setTimeLeft(2700);
               setWarnings([]);
             }}
-            className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-3.5 rounded-xl transition-all border border-slate-700"
+            className="w-full bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 text-white font-medium py-3 rounded-lg transition-all text-xs focus-oxford"
           >
             Return to Login
           </button>
@@ -730,87 +742,114 @@ export default function App() {
 
   if (!sessionStarted) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col justify-between font-sans">
-        <header className="px-6 py-5 border-b border-slate-900 bg-slate-950/60 backdrop-blur sticky top-0 z-50">
-          <div className="max-w-6xl mx-auto flex items-center gap-3">
-            <ShieldCheck className="w-6 h-6 text-indigo-400" />
-            <h1 className="text-xl font-extrabold tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-cyan-400">
-              ExamGuard AI
-            </h1>
+      <div className="screen">
+        {/* FORM PANEL — matches student-login.html exactly */}
+        <div className="form-panel">
+          <div className="brand">
+            {/* Wax-seal brand mark */}
+            <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: 26, height: 26, flexShrink: 0 }}>
+              <path d="M20 2 L23.5 6.5 L29 5 L29.5 10.7 L35 12.5 L32 17.5 L35 22.5 L29.5 24.3 L29 30 L23.5 28.5 L20 33 L16.5 28.5 L11 30 L10.5 24.3 L5 22.5 L8 17.5 L5 12.5 L10.5 10.7 L11 5 L16.5 6.5 Z"
+                stroke="#1E3A5F" strokeWidth="1.4" fill="#F6F3EC"/>
+              <text x="20" y="21.5" textAnchor="middle" fontFamily="Newsreader, serif" fontSize="10" fontWeight="600" fill="#1E3A5F">EG</text>
+            </svg>
+            <span className="brand-word">EXAMGUARD AI</span>
           </div>
-        </header>
 
-        <main className="flex-1 flex items-center justify-center p-6">
-          <div className="w-full max-w-md glass-panel glow-indigo rounded-3xl p-8 space-y-6">
-            <div className="space-y-2 text-center">
-              <h2 className="text-2xl font-extrabold tracking-tight text-slate-100">
-                Secure Student Portal
-              </h2>
-              <p className="text-slate-400 text-xs leading-relaxed">
-                ExamGuard AI runs multi-modal edge tracking (face landmarks, eye gazes, whispering frequency) natively inside your browser.
-              </p>
-            </div>
+          <div className="form-body">
+            <h1 style={{ fontFamily: "'Newsreader', serif", fontWeight: 600, fontSize: 40, lineHeight: 1.15, margin: '0 0 14px 0', letterSpacing: '-0.01em' }}>
+              Enter the&nbsp;Exam&nbsp;Hall
+            </h1>
+            <p className="lede">
+              Verify your registration credentials and confirm camera and microphone access to begin your session.
+            </p>
 
-            <form onSubmit={startExam} className="space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                  Enter Student Registration ID
-                </label>
+            <form onSubmit={startExam}>
+              <div className="field">
+                <label htmlFor="student-id">Student registration ID</label>
                 <input
+                  id="student-id"
                   type="text"
                   required
                   placeholder="e.g. MITS-CS-2026-08"
                   value={studentId}
                   onChange={(e) => setStudentId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 font-mono text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
                 />
               </div>
 
-              <div className="p-4 bg-slate-900/50 border border-slate-800/80 rounded-xl space-y-3">
-                <h4 className="text-xs font-bold text-slate-300 flex items-center gap-1.5 uppercase tracking-wide">
-                  <Camera className="w-4 h-4 text-cyan-400" /> Sensor Status
-                </h4>
-                <div className="text-[10px] text-slate-400 flex justify-between">
-                  <span>Local ONNX Engine:</span>
+              {/* Sensor readiness panel */}
+              <div className="sensor-panel">
+                <h4>Sensor readiness</h4>
+                <div className="sensor-row">
+                  <span>Local detection engine</span>
                   {modelLoading ? (
-                    <span className="text-amber-400 font-bold animate-pulse">LOADING...</span>
+                    <span className="status" style={{ color: '#B8912F' }}>Loading…</span>
                   ) : ortSessionRef.current ? (
-                    <span className="text-emerald-400 font-bold">READY</span>
+                    <span className="status ready">Ready</span>
                   ) : (
-                    <span className="text-rose-500 font-bold">OFFLINE</span>
+                    <span className="status offline">Offline</span>
                   )}
                 </div>
-                <div className="text-[10px] text-slate-400 flex justify-between">
-                  <span>MediaPipe FaceMesh:</span>
+                <div className="sensor-row">
+                  <span>Face tracking</span>
                   {faceMeshRef.current ? (
-                    <span className="text-emerald-400 font-bold">LOADED (CDN)</span>
+                    <span className="status ready">Connected</span>
                   ) : (
-                    <span className="text-rose-500 font-bold">NOT LOADED</span>
+                    <span className="status offline">Disconnected</span>
                   )}
                 </div>
-                <ul className="text-[10px] text-slate-450 space-y-1 list-disc pl-4 border-t border-slate-900/60 pt-2">
-                  <li>Please enable both Camera and Microphone permissions.</li>
-                  <li>Temporal debouncing filters out transient shifts.</li>
-                  <li>Violations trigger automatic 5-second video highlights.</li>
-                </ul>
+                <p className="sensor-note">
+                  Analysis runs on your device. No continuous audio or video leaves your browser — only brief violation keyframes are sent for the record.
+                </p>
               </div>
 
               <button
                 type="submit"
                 disabled={modelLoading || !ortSessionRef.current}
-                className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-semibold py-3.5 rounded-xl transition-all shadow-lg shadow-indigo-600/20 disabled:opacity-50"
+                className="btn-primary"
               >
-                Authenticate & Start Exam
+                Start exam
               </button>
             </form>
           </div>
-        </main>
 
-        <footer className="py-4 text-center border-t border-slate-900 bg-slate-950/40">
-          <p className="text-[10px] text-slate-600 uppercase tracking-widest">
-            ExamGuard AI Proctor Core • Fully Compliant v1.1
-          </p>
-        </footer>
+          <div className="form-footer">Proctor Core v1.1 · Sealed Integrity</div>
+        </div>
+
+        {/* ILLUSTRATION PANEL — clock-eye SVG from student-login.html */}
+        <div className="art-panel">
+          <svg width="420" height="420" viewBox="0 0 420 420" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ position: 'relative', zIndex: 1 }}>
+            {/* outer clock ring */}
+            <circle cx="210" cy="210" r="150" stroke="#C7D4E3" strokeWidth="1" opacity="0.55"/>
+            <circle cx="210" cy="210" r="128" stroke="#C7D4E3" strokeWidth="1" opacity="0.35"/>
+            {/* tick marks */}
+            <g stroke="#C7D4E3" strokeWidth="1.4" opacity="0.6">
+              <line x1="210" y1="60" x2="210" y2="78"/>
+              <line x1="210" y1="342" x2="210" y2="360"/>
+              <line x1="60" y1="210" x2="78" y2="210"/>
+              <line x1="342" y1="210" x2="360" y2="210"/>
+              <line x1="104" y1="104" x2="117" y2="117"/>
+              <line x1="303" y1="303" x2="316" y2="316"/>
+              <line x1="104" y1="316" x2="117" y2="303"/>
+              <line x1="303" y1="117" x2="316" y2="104"/>
+            </g>
+            {/* eye shape replacing clock hands */}
+            <path d="M110 210 Q210 150 310 210 Q210 270 110 210 Z" stroke="#D9B65B" strokeWidth="1.6" fill="none"/>
+            <circle cx="210" cy="210" r="34" stroke="#D9B65B" strokeWidth="1.6" fill="none"/>
+            <circle cx="210" cy="210" r="10" fill="#D9B65B"/>
+            {/* lash-like tick accents on the eye */}
+            <g stroke="#D9B65B" strokeWidth="1.2" opacity="0.7">
+              <line x1="150" y1="188" x2="142" y2="178"/>
+              <line x1="270" y1="188" x2="278" y2="178"/>
+              <line x1="130" y1="205" x2="120" y2="200"/>
+              <line x1="290" y1="205" x2="300" y2="200"/>
+            </g>
+          </svg>
+
+          <div className="art-caption">
+            <strong>One seal. Every session.</strong>
+            Local, on-device monitoring verifies your session without watching more than it needs to.
+          </div>
+        </div>
       </div>
     );
   }
@@ -818,26 +857,26 @@ export default function App() {
   const currentQuestion = MOCK_QUESTIONS[currentQuestionIdx];
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col justify-between font-sans">
+    <div className="min-h-screen bg-[#F6F3EC] flex flex-col justify-between font-sans text-[#1C2430]">
       {/* Top Banner Warnings Overlay */}
       {warnings.length > 0 && (
-        <div className="fixed top-20 right-6 z-50 w-full max-w-sm space-y-3">
+        <div className="fixed top-20 right-6 z-50 w-full max-w-sm space-y-3 print-hidden">
           {warnings.map((warn, index) => (
             <div
               key={index}
-              className="glass-panel border-rose-500/30 bg-gradient-to-r from-rose-950/40 to-slate-900/90 rounded-2xl p-4 flex gap-3 shadow-2xl animate-slide-in relative overflow-hidden"
+              className="bg-white border border-[#1C2430]/10 rounded p-4 flex gap-3 shadow-md relative overflow-hidden animate-slide-in"
             >
-              <div className="absolute top-0 left-0 w-1.5 h-full bg-rose-500"></div>
-              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+              <div className="absolute top-0 left-0 w-1.5 h-full bg-[#8C2F39]"></div>
+              <AlertTriangle className="w-4 h-4 text-[#8C2F39] shrink-0 mt-0.5" />
               <div className="flex-1 space-y-1">
-                <h4 className="text-xs font-bold text-rose-400 uppercase tracking-wider">
-                  Security Notification
+                <h4 className="text-[10px] font-bold text-[#8C2F39] uppercase tracking-wider">
+                  System Notification
                 </h4>
-                <p className="text-xs text-slate-200 leading-normal">{warn}</p>
+                <p className="text-xs text-slate-700 leading-normal">{warn}</p>
               </div>
               <button
                 onClick={() => dismissWarning(index)}
-                className="text-[10px] font-bold text-slate-500 hover:text-slate-300 self-start uppercase px-1.5 py-0.5 rounded border border-slate-800"
+                className="text-[9px] font-bold text-slate-400 hover:text-slate-600 self-start uppercase px-1.5 py-0.5 rounded border border-slate-200"
               >
                 Dismiss
               </button>
@@ -847,22 +886,26 @@ export default function App() {
       )}
 
       {/* Header */}
-      <header className="px-6 py-4 border-b border-slate-900 bg-slate-950/60 backdrop-blur sticky top-0 z-40 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <ShieldCheck className="w-5 h-5 text-indigo-400" />
-          <h1 className="text-lg font-bold tracking-wider text-slate-200">
+      <header className="px-6 py-4 border-b border-[#1C2430]/10 bg-white sticky top-0 z-40 flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: 22, height: 22, flexShrink: 0 }}>
+            <path d="M20 2 L23.5 6.5 L29 5 L29.5 10.7 L35 12.5 L32 17.5 L35 22.5 L29.5 24.3 L29 30 L23.5 28.5 L20 33 L16.5 28.5 L11 30 L10.5 24.3 L5 22.5 L8 17.5 L5 12.5 L10.5 10.7 L11 5 L16.5 6.5 Z"
+              stroke="#1E3A5F" strokeWidth="1.4" fill="#F6F3EC"/>
+            <text x="20" y="21.5" textAnchor="middle" fontFamily="Newsreader, serif" fontSize="10" fontWeight="600" fill="#1E3A5F">EG</text>
+          </svg>
+          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px', letterSpacing: '0.14em', color: '#5B6472', fontWeight: 500 }}>
             EXAMGUARD SECURE PORTAL
-          </h1>
+          </span>
         </div>
 
         <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-800 px-3.5 py-1.5 rounded-full text-xs font-mono font-bold text-cyan-400 tracking-wider shadow-inner">
-            <Clock className="w-3.5 h-3.5 text-cyan-400" />
+          <div className="flex items-center gap-2 bg-[#F6F3EC] border border-[#1C2430]/10 px-3.5 py-1.5 rounded text-xs font-mono font-bold text-[#1E3A5F] tracking-wider">
+            <Clock className="w-3.5 h-3.5 text-[#1E3A5F]" />
             <span>{formatTime(timeLeft)}</span>
           </div>
 
-          <span className="px-3.5 py-1.5 text-[10px] font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 rounded-full font-mono">
-            ID: {studentId}
+          <span className="text-[10px] font-bold font-mono text-slate-550">
+            Student: {studentId}
           </span>
         </div>
       </header>
@@ -871,19 +914,19 @@ export default function App() {
       <main className="flex-1 max-w-6xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Left/Center: MCQ Questions Panel */}
         <section className="lg:col-span-2 space-y-6">
-          <div className="glass-panel rounded-3xl p-6 space-y-6 shadow-xl">
+          <div className="bg-white border border-[#1C2430]/10 rounded-lg p-6 space-y-6 shadow-sm">
             {/* Index Tracker */}
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-widest">
                 Question {currentQuestionIdx + 1} of {MOCK_QUESTIONS.length}
               </span>
-              <span className="text-[10px] font-bold text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+              <span className="text-[10px] font-mono font-bold text-slate-400">
                 General Knowledge Section
               </span>
             </div>
 
             {/* Question Text */}
-            <h3 className="text-base font-bold text-slate-100 leading-relaxed">
+            <h3 className="text-lg font-serif font-bold text-[#1C2430] leading-relaxed">
               {currentQuestion.text}
             </h3>
 
@@ -895,18 +938,18 @@ export default function App() {
                   <button
                     key={idx}
                     onClick={() => handleSelectOption(currentQuestion.id, idx)}
-                    className={`w-full text-left px-5 py-4 rounded-2xl border text-xs font-medium transition-all flex items-center justify-between ${
+                    className={`w-full text-left px-5 py-4 rounded border text-xs font-medium transition-all flex items-center justify-between ${
                       isSelected
-                        ? "bg-indigo-500/10 border-indigo-500 text-indigo-200"
-                        : "bg-slate-950/40 border-slate-855 hover:bg-slate-900 text-slate-300"
+                        ? "bg-[#1E3A5F]/5 border-[#1E3A5F] text-[#1E3A5F]"
+                        : "bg-white border-[#1C2430]/10 hover:bg-[#F6F3EC]/50 text-slate-700"
                     }`}
                   >
                     <span>{opt}</span>
-                    {isSelected && (
-                      <span className="w-4 h-4 bg-indigo-500 rounded-full border border-indigo-400 flex items-center justify-center text-[8px] text-white font-bold">
-                        ✓
-                      </span>
-                    )}
+                    <span className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center shrink-0 ${
+                      isSelected ? "border-[#1E3A5F]" : "border-[#1C2430]/20"
+                    }`}>
+                      {isSelected && <span className="w-1.5 h-1.5 bg-[#1E3A5F] rounded-full" />}
+                    </span>
                   </button>
                 );
               })}
@@ -918,7 +961,7 @@ export default function App() {
             <button
               onClick={() => setCurrentQuestionIdx((prev) => Math.max(0, prev - 1))}
               disabled={currentQuestionIdx === 0}
-              className="px-5 py-2.5 rounded-xl border border-slate-800 text-xs font-bold text-slate-400 hover:bg-slate-900 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+              className="px-5 py-2 rounded border border-[#1C2430]/15 text-xs font-semibold text-slate-600 hover:bg-white disabled:opacity-30 disabled:hover:bg-transparent transition-all focus-oxford"
             >
               Previous
             </button>
@@ -926,14 +969,14 @@ export default function App() {
             {currentQuestionIdx < MOCK_QUESTIONS.length - 1 ? (
               <button
                 onClick={() => setCurrentQuestionIdx((prev) => prev + 1)}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2.5 rounded-xl text-xs font-bold transition-all shadow shadow-indigo-600/15"
+                className="bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 text-white px-6 py-2 rounded text-xs font-semibold transition-all focus-oxford"
               >
                 Next Question
               </button>
             ) : (
               <button
                 onClick={submitExam}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white px-7 py-2.5 rounded-xl text-xs font-bold transition-all shadow shadow-emerald-600/15"
+                className="bg-[#4B7A6B] hover:bg-[#4B7A6B]/90 text-white px-7 py-2 rounded text-xs font-semibold transition-all focus-oxford"
               >
                 Submit Exam
               </button>
@@ -944,19 +987,19 @@ export default function App() {
         {/* Right Panel: Active Camera Proctor Feed */}
         <section className="lg:col-span-1 space-y-6">
           {/* Webcam Preview Widget */}
-          <div className="glass-panel rounded-3xl p-5 space-y-4 shadow-xl">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-slate-300 flex items-center gap-1.5 uppercase tracking-wide">
-                <Camera className="w-4 h-4 text-indigo-400" /> Active Video Stream
+          <div className="bg-white border border-[#1C2430]/10 rounded-lg p-5 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h4 className="text-xs font-bold text-[#1C2430]/80 uppercase tracking-wider flex items-center gap-1.5">
+                Webcam Feed
               </h4>
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
+              <div className="flex items-center gap-1.5 text-[9px] font-mono text-[#8C2F39] font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#8C2F39]"></span>
+                RECORDING
+              </div>
             </div>
 
-            {/* Webcam video window */}
-            <div className="bg-slate-950 rounded-2xl overflow-hidden border border-slate-900 aspect-video relative flex items-center justify-center">
+            {/* Webcam video window - passport framed style */}
+            <div className="bg-slate-100 rounded border border-[#1C2430]/10 overflow-hidden aspect-[4/3] max-w-[200px] mx-auto relative flex items-center justify-center">
               <Webcam
                 audio={false}
                 ref={webcamRef}
@@ -968,45 +1011,42 @@ export default function App() {
                 }}
                 className="w-full h-full object-cover transform scale-x-[-1]"
               />
-              <div className="absolute bottom-3 left-3 bg-slate-950/80 border border-slate-800/80 px-2 py-0.5 rounded text-[9px] font-mono text-slate-400 font-bold uppercase tracking-wider">
-                Rolling recording
-              </div>
             </div>
             
-            <p className="text-[10px] text-slate-400 leading-normal bg-slate-900/50 border border-slate-855 p-3 rounded-xl">
-              ExamGuard AI performs pupil-mesh, head pose Euler estimation, and speech frequency FFT locally inside Web Assembly. Telemetry details are streamed only when security events are triggered.
+            <p className="text-[10px] text-slate-500 leading-relaxed font-sans bg-[#F6F3EC]/50 p-3 rounded border border-[#1C2430]/5">
+              This exam is verified on the local client ledger. AI evaluations (yaw/pitch angles, speech spectrogram ratio) are executed in real time in-browser.
             </p>
           </div>
 
           {/* Quick Stats Panel */}
-          <div className="glass-panel rounded-3xl p-5 space-y-3 font-mono text-[10px] text-slate-400 leading-loose shadow-xl">
-            <h5 className="font-sans font-bold text-xs text-slate-355 uppercase tracking-wide mb-1">
-              On-Device Metrics
+          <div className="bg-white border border-[#1C2430]/10 rounded-lg p-5 space-y-3 font-mono text-[10px] text-slate-500 leading-loose shadow-sm">
+            <h5 className="font-sans font-bold text-xs text-[#1C2430]/80 uppercase tracking-wider mb-1">
+              Ledger Metrics
             </h5>
-            <div className="flex justify-between border-b border-slate-900 pb-1.5">
+            <div className="flex justify-between border-b border-slate-100 pb-1.5">
               <span>Status:</span>
-              <span className="text-emerald-400 font-bold font-sans">DEBOUNCED_RECORDING</span>
+              <span className="text-[#4B7A6B] font-bold font-sans">INVIGILATION_ACTIVE</span>
             </div>
-            <div className="flex justify-between border-b border-slate-900 pb-1.5">
-              <span>Audio Model:</span>
-              <span>FFT Speech Band Filter</span>
+            <div className="flex justify-between border-b border-slate-100 pb-1.5">
+              <span>Acoustic Engine:</span>
+              <span>FFT Filter</span>
             </div>
-            <div className="flex justify-between border-b border-slate-900 pb-1.5">
-              <span>Video Models:</span>
-              <span>FaceMesh (CDN) + CNN (ONNX)</span>
+            <div className="flex justify-between border-b border-slate-100 pb-1.5">
+              <span>Vision Engine:</span>
+              <span>ONNX + FaceMesh</span>
             </div>
             <div className="flex justify-between">
               <span>Evidence Highlight:</span>
-              <span>5-Second WebM Clips</span>
+              <span>Rolling WebM</span>
             </div>
           </div>
         </section>
       </main>
 
       {/* Footer */}
-      <footer className="py-4 text-center border-t border-slate-900 bg-slate-950/40">
-        <p className="text-[10px] text-slate-600 uppercase tracking-widest">
-          ExamGuard AI • Edge-Powered Academic Integrity Suite
+      <footer className="py-4 text-center border-t border-[#1C2430]/10 bg-white">
+        <p className="text-[9px] text-[#1C2430]/40 font-mono uppercase tracking-widest">
+          ExamGuard AI • Ledgers of Academic Integrity
         </p>
       </footer>
     </div>
