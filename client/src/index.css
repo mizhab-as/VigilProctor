@@ -4,12 +4,15 @@
 
 :root {
   --paper: #F6F3EC;
-  --paper-line: #E4DFD2;
+  --card: #FFFFFF;
+  --line: #E4DFD2;
   --ink: #1C2430;
   --ink-soft: #5B6472;
   --oxford: #1E3A5F;
   --oxford-deep: #152C48;
+  --oxford-wash: #EAEFF5;
   --seal: #8C2F39;
+  --seal-wash: #F7EAEA;
   --verdigris: #4B7A6B;
   --gold: #B8912F;
   --radius: 8px;
@@ -37,7 +40,7 @@ body {
   font-family: 'IBM Plex Mono', monospace;
 }
 
-/* Layout classes based on student-login.html */
+/* ---------- LOGIN PAGE STYLES (student-login.html) ---------- */
 .screen {
   display: flex;
   min-height: 100vh;
@@ -63,8 +66,8 @@ body {
 .brand-word {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 13px;
-  letter-spacing: 0.14em;
-  color: var(--ink-soft);
+  letter-spacing: 0.12em;
+  color: var(--ink);
   font-weight: 500;
 }
 
@@ -251,7 +254,225 @@ body {
   margin-bottom: 8px;
 }
 
-/* Settle animation for confirmed actions / seals */
+/* ---------- EXAM SECURE PORTAL STYLES (student-exam.html) ---------- */
+.timer {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--oxford);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 14px;
+}
+
+.student-tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--ink-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 14px;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 32px;
+}
+
+.q-meta {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 20px;
+}
+
+.q-text {
+  font-family: 'Newsreader', serif;
+  font-weight: 600;
+  font-size: 21px;
+  line-height: 1.5;
+  margin: 0 0 28px 0;
+  color: var(--ink);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 15px 18px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+  color: var(--ink);
+  background: var(--card);
+}
+
+.option:hover {
+  border-color: #C9C2AE;
+}
+
+.option .dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid #C9C2AE;
+  flex-shrink: 0;
+}
+
+.option.selected {
+  border-color: var(--oxford);
+  background: var(--oxford-wash);
+}
+
+.option.selected .dot {
+  border-color: var(--oxford);
+  background: var(--oxford);
+  box-shadow: inset 0 0 0 3px var(--oxford-wash);
+}
+
+.nav-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+}
+
+.btn {
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all .15s ease;
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink-soft);
+}
+
+.btn-ghost:hover {
+  background: var(--oxford-wash);
+  color: var(--ink);
+}
+
+.btn-ghost:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  background: transparent;
+  color: var(--ink-soft);
+  border-color: var(--line);
+}
+
+.btn-primary-exam {
+  background: var(--oxford);
+  color: var(--paper);
+}
+
+.btn-primary-exam:hover {
+  background: var(--oxford-deep);
+}
+
+.btn-submit-exam {
+  background: var(--verdigris);
+  color: var(--paper);
+}
+
+.btn-submit-exam:hover {
+  background: #3c6356;
+}
+
+/* Right Stack Elements */
+.side-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 16px;
+}
+
+.rec-dot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--seal);
+}
+
+.rec-dot::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--seal);
+}
+
+.webcam-frame {
+  aspect-ratio: 4/3;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(135deg, #F0ECE1 0 2px, transparent 2px 14px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #B4AD9C;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+}
+
+.webcam-note {
+  font-size: 12px;
+  color: var(--ink-soft);
+  line-height: 1.6;
+  margin-top: 14px;
+}
+
+.ledger-rows .row {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11.5px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.ledger-rows .row:first-child {
+  border-top: none;
+}
+
+.row .val {
+  font-weight: 500;
+}
+
+.val.status-active {
+  color: var(--verdigris);
+}
+
+/* ---------- SYSTEM ANIMATIONS / STAMP SEALS ---------- */
 @keyframes seal-settle {
   0% {
     transform: scale(1.4);
@@ -274,25 +495,24 @@ body {
   animation: seal-settle 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
 }
 
-@media (max-width: 860px) {
-  .screen {
-    flex-direction: column;
+/* Custom layout slide alerts */
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out forwards;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
   }
-  .form-panel, .art-panel {
-    width: 100%;
+  to {
+    transform: translateX(0);
+    opacity: 1;
   }
-  .form-panel {
-    padding: 40px 28px;
-  }
-  .art-panel {
-    min-height: 280px;
-    order: -1;
-  }
-  .art-caption {
-    left: 28px;
-    bottom: 28px;
-  }
-  .form-body {
-    margin-top: 40px;
+}
+
+@media (max-width: 900px) {
+  .btn {
+    padding: 10px 18px;
   }
 }
