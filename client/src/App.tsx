@@ -102,7 +102,7 @@ export default function App() {
       setModelLoading(true);
       setModelError(null);
       console.log("[ort] Loading model.onnx...");
-      const session = await ort.InferenceSession.create("/model.onnx");
+      const session = await ort.InferenceSession.create("/model.onnx?v=2");
       ortSessionRef.current = session;
       setModelReady(true);
       console.log("[ort] Model loaded successfully.");
