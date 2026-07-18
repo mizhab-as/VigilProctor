@@ -68,6 +68,7 @@ export default function App() {
   const [modelError, setModelError] = useState<string | null>(null);
   const [modelReady, setModelReady] = useState(false);
   const [questions, setQuestions] = useState<Question[]>(MOCK_QUESTIONS);
+  const [showFeed, setShowFeed] = useState(false);
 
   const webcamRef = useRef<Webcam>(null);
   const ortSessionRef = useRef<ort.InferenceSession | null>(null);
@@ -729,48 +730,31 @@ export default function App() {
 
   if (examSubmitted) {
     return (
-      <div className="min-h-screen bg-[#F6F3EC] flex items-center justify-center p-6 font-sans text-[#1C2430]">
-        <div className="w-full max-w-md bg-white border border-[#1C2430]/10 rounded-lg p-8 text-center space-y-6 shadow-sm">
-          {/* Animated Wax-Seal Stamp */}
-          <div className="w-24 h-24 mx-auto relative">
-            <svg viewBox="0 0 100 100" className="w-full h-full seal-animated">
-              <path d="M 50 4 C 60 3, 75 7, 85 15 C 93 25, 97 40, 96 50 C 95 65, 93 75, 85 85 C 75 93, 60 97, 50 96 C 35 95, 25 93, 15 85 C 7 75, 3 60, 4 50 C 5 35, 7 25, 15 15 C 25 7, 40 3, 50 4 Z" className="fill-[#8C2F39] stroke-[#73222A] stroke-[1.5]" />
-              <circle cx="50" cy="50" r="33" className="fill-none stroke-[#B8912F] stroke-[1.5] stroke-dasharray-[1, 1]" />
-              <circle cx="50" cy="50" r="31" className="fill-none stroke-[#B8912F] stroke-[0.75]" />
-              <text x="50" y="58" className="font-serif text-2xl font-bold fill-[#F6F3EC]" textAnchor="middle">EG</text>
-              <path id="seal-text-path-sub" d="M 22 50 A 28 28 0 1 1 78 50" className="fill-none stroke-none" />
-              <text className="font-sans text-[6px] fill-[#B8912F] tracking-[0.2em] font-semibold">
-                <textPath href="#seal-text-path-sub" startOffset="50%" textAnchor="middle">
-                  EXAMGUARD • VERIFIED
-                </textPath>
-              </text>
+      <div style={{ height: '100vh', background: '#F6F3EC', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Inter', sans-serif" }}>
+        <div style={{ width: '100%', maxWidth: 420, background: '#fff', border: '1px solid #E4DFD2', borderRadius: 12, padding: '32px 36px', textAlign: 'center' }}>
+          {/* Compact wax seal */}
+          <div style={{ width: 56, height: 56, margin: '0 auto 20px' }}>
+            <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%', overflow: 'visible' }} className="seal-animated">
+              <path d="M 50 4 C 60 3, 75 7, 85 15 C 93 25, 97 40, 96 50 C 95 65, 93 75, 85 85 C 75 93, 60 97, 50 96 C 35 95, 25 93, 15 85 C 7 75, 3 60, 4 50 C 5 35, 7 25, 15 15 C 25 7, 40 3, 50 4 Z" fill="#8C2F39" stroke="#73222A" strokeWidth="1.5" />
+              <circle cx="50" cy="50" r="33" fill="none" stroke="#B8912F" strokeWidth="1.5" />
+              <text x="50" y="56" textAnchor="middle" fontFamily="Newsreader, serif" fontSize="20" fontWeight="700" fill="#F6F3EC">EG</text>
             </svg>
           </div>
-          <div className="space-y-2">
-            <h1 className="text-2xl font-serif font-bold text-[#1C2430]">
-              Exam Submitted
-            </h1>
-            <p className="text-slate-500 text-xs">
-              Your session logs and answer metrics have been securely compiled and recorded in the invigilator ledger.
-            </p>
-          </div>
-          <div className="bg-[#F6F3EC]/80 border border-[#1C2430]/10 rounded-lg p-5 text-left text-xs font-mono text-slate-700 space-y-2">
-            <div><span className="text-slate-400">Student ID:</span> {studentId}</div>
-            <div><span className="text-slate-400">Session ID:</span> {sessionId}</div>
-            <div><span className="text-slate-400">Submission Time:</span> {new Date().toLocaleTimeString()}</div>
-            <div><span className="text-slate-400">Security Index:</span> Cleared</div>
+          <h1 style={{ fontFamily: "'Newsreader', serif", fontWeight: 700, fontSize: 22, margin: '0 0 8px', color: '#1C2430' }}>Exam Submitted</h1>
+          <p style={{ fontSize: 12.5, color: '#5B6472', lineHeight: 1.6, margin: '0 0 20px' }}>
+            Session logs recorded in the invigilator ledger.
+          </p>
+          <div style={{ background: '#F6F3EC', border: '1px solid #E4DFD2', borderRadius: 8, padding: '14px 16px', textAlign: 'left', fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: '#5B6472', marginBottom: 20 }}>
+            <div style={{ marginBottom: 4 }}><span style={{ color: '#A8A296' }}>Student:</span> {studentId}</div>
+            <div style={{ marginBottom: 4 }}><span style={{ color: '#A8A296' }}>Session:</span> {sessionId.substring(0, 24)}…</div>
+            <div><span style={{ color: '#A8A296' }}>Time:</span> {new Date().toLocaleTimeString()}</div>
           </div>
           <button
             onClick={() => {
-              setExamSubmitted(false);
-              setStudentId("");
-              setSessionId("");
-              setAnswers({});
-              setCurrentQuestionIdx(0);
-              setTimeLeft(2700);
-              setWarnings([]);
+              setExamSubmitted(false); setStudentId(''); setSessionId('');
+              setAnswers({}); setCurrentQuestionIdx(0); setTimeLeft(2700); setWarnings([]);
             }}
-            className="w-full bg-[#1E3A5F] hover:bg-[#1E3A5F]/90 text-white font-medium py-3 rounded-lg transition-all text-xs focus-oxford"
+            style={{ width: '100%', background: '#1E3A5F', color: '#F6F3EC', border: 'none', borderRadius: 8, padding: '12px', fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
           >
             Return to Login
           </button>
@@ -903,7 +887,7 @@ export default function App() {
   const currentQuestion = questions[currentQuestionIdx];
 
   return (
-    <div className="min-h-screen bg-[var(--paper)] flex flex-col justify-between font-sans text-[var(--ink)]">
+    <div style={{ height: '100vh', background: 'var(--paper)', display: 'flex', flexDirection: 'column', fontFamily: "'Inter', sans-serif", color: 'var(--ink)', overflow: 'hidden' }}>
       {/* Top Banner Warnings Overlay — clean active voice */}
       {warnings.length > 0 && (
         <div className="fixed top-20 right-6 z-50 w-full max-w-sm space-y-3 print-hidden animate-slide-in">
@@ -932,28 +916,28 @@ export default function App() {
         </div>
       )}
 
-      {/* HEADER — matching student-exam.html */}
+      {/* HEADER */}
       <header>
         <div className="brand">
-          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: 20, height: 20, flexShrink: 0 }}>
             <path d="M20 2 L23.5 6.5 L29 5 L29.5 10.7 L35 12.5 L32 17.5 L35 22.5 L29.5 24.3 L29 30 L23.5 28.5 L20 33 L16.5 28.5 L11 30 L10.5 24.3 L5 22.5 L8 17.5 L5 12.5 L10.5 10.7 L11 5 L16.5 6.5 Z"
               stroke="#1E3A5F" strokeWidth="1.4" fill="#F6F3EC"/>
             <text x="20" y="21.5" textAnchor="middle" fontFamily="Newsreader, serif" fontSize="10" fontWeight="600" fill="#1E3A5F">EG</text>
           </svg>
-          <span className="brand-word">EXAMGUARD SECURE PORTAL</span>
+          <span className="brand-word">EXAMGUARD</span>
         </div>
         <div className="header-right">
           <div className="timer">
             <span>⏱</span> {formatTime(timeLeft)}
           </div>
-          <div className="student-tag">Student: {studentId}</div>
+          <div className="student-tag">{studentId}</div>
         </div>
       </header>
 
-      {/* MAIN LAYOUT — matching student-exam.html */}
+      {/* MAIN LAYOUT */}
       <main>
         {/* QUESTION CARD */}
-        <div>
+        <div style={{ overflowY: 'auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           <div className="card">
             <div className="q-meta">
               <span>Question {currentQuestionIdx + 1} of {questions.length}</span>
@@ -1005,7 +989,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* SIDE COLUMN — matching student-exam.html */}
+        {/* SIDE COLUMN */}
         <div className="side-stack">
           {/* Hidden Webcam — needed for MediaPipe and ONNX processing but not shown to student */}
           <div style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', opacity: 0, pointerEvents: 'none' }}>
@@ -1013,74 +997,48 @@ export default function App() {
               audio={false}
               ref={webcamRef}
               screenshotFormat="image/jpeg"
-              videoConstraints={{
-                width: 320,
-                height: 240,
-                facingMode: "user"
-              }}
+              videoConstraints={{ width: 320, height: 240, facingMode: "user" }}
             />
           </div>
 
-          <div className="card">
-            <div className="panel-title">
-              <span>Camera status</span>
-              <span className="rec-dot">Active</span>
+          {/* Compact camera status strip */}
+          <div className="card" style={{ padding: '12px 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--verdigris)', display: 'inline-block' }} />
+                <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--ink-soft)' }}>Camera active</span>
+              </div>
+              <button
+                onClick={() => setShowFeed((v) => !v)}
+                style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--oxford)', background: 'none', border: '1px solid var(--line)', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' }}
+              >
+                {showFeed ? 'Hide' : 'Show feed'}
+              </button>
             </div>
-            <div style={{
-              background: 'var(--paper)',
-              border: '1px solid var(--line)',
-              borderRadius: 6,
-              padding: '20px 16px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 10,
-              textAlign: 'center'
-            }}>
-              <svg viewBox="0 0 48 48" width="40" height="40" fill="none">
-                <circle cx="24" cy="24" r="22" stroke="var(--oxford)" strokeWidth="1.5" />
-                <path d="M14 22 Q24 10 34 22 Q24 34 14 22Z" stroke="var(--oxford)" strokeWidth="1.5" fill="none" />
-                <circle cx="24" cy="22" r="5" fill="var(--oxford)" />
-                <circle cx="13" cy="13" r="3" fill="var(--seal)" />
-              </svg>
-              <p style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--ink-soft)', margin: 0 }}>
-                Proctoring active<br/>
-                <span style={{ color: 'var(--verdigris)', fontWeight: 600 }}>● Camera connected</span>
-              </p>
-            </div>
-            <p className="webcam-note">
-              On-device analysis only. Face position and attention are verified locally. No video is transmitted.
-            </p>
+            {showFeed && (
+              <div style={{ marginTop: 10, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--line)' }}>
+                <Webcam
+                  audio={false}
+                  screenshotFormat="image/jpeg"
+                  videoConstraints={{ width: 240, height: 180, facingMode: "user" }}
+                  style={{ width: '100%', display: 'block', transform: 'scaleX(-1)' }}
+                />
+              </div>
+            )}
           </div>
 
+          {/* Ledger metrics */}
           <div className="card">
-            <div className="panel-title">
-              <span>Ledger metrics</span>
-            </div>
+            <div className="panel-title"><span>Ledger metrics</span></div>
             <div className="ledger-rows">
-              <div className="row">
-                <span>Status</span>
-                <span className="val status-active">Invigilation active</span>
-              </div>
-              <div className="row">
-                <span>Acoustic engine</span>
-                <span className="val">FFT filter</span>
-              </div>
-              <div className="row">
-                <span>Vision engine</span>
-                <span className="val">ONNX + FaceMesh</span>
-              </div>
-              <div className="row">
-                <span>Evidence highlight</span>
-                <span className="val">Rolling WebM</span>
-              </div>
+              <div className="row"><span>Status</span><span className="val status-active">Active</span></div>
+              <div className="row"><span>Audio</span><span className="val">FFT filter</span></div>
+              <div className="row"><span>Vision</span><span className="val">ONNX + FaceMesh</span></div>
+              <div className="row"><span>Evidence</span><span className="val">Rolling WebM</span></div>
             </div>
           </div>
         </div>
       </main>
-
-      {/* FOOTER */}
-      <footer>ExamGuard AI · Ledgers of Academic Integrity</footer>
     </div>
   );
 }
