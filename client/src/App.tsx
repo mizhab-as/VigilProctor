@@ -316,7 +316,7 @@ export default function App() {
       }
       return;
     } else {
-      consecutiveMissingRef.current = 0;
+      consecutiveMissingRef.current = Math.max(0, consecutiveMissingRef.current - 1);
     }
 
     // B. Check for Multiple Persons (Class 3)
@@ -362,7 +362,7 @@ export default function App() {
       }
       return;
     } else {
-      consecutiveMultipleRef.current = 0;
+      consecutiveMultipleRef.current = Math.max(0, consecutiveMultipleRef.current - 1);
     }
 
     const landmarks = results.multiFaceLandmarks[0];
@@ -397,7 +397,7 @@ export default function App() {
         consecutiveCheekRef.current = 0;
       }
     } else {
-      consecutiveCheekRef.current = 0;
+      consecutiveCheekRef.current = Math.max(0, consecutiveCheekRef.current - 1);
     }
 
     // Debounce pitch movements (up/down)
@@ -415,7 +415,7 @@ export default function App() {
         consecutivePitchRef.current = 0;
       }
     } else {
-      consecutivePitchRef.current = 0;
+      consecutivePitchRef.current = Math.max(0, consecutivePitchRef.current - 1);
     }
 
     // D. Eye Gaze Iris Drift Tracking (Looking Off-Screen)
@@ -440,7 +440,7 @@ export default function App() {
         consecutiveGazeRef.current = 0;
       }
     } else {
-      consecutiveGazeRef.current = 0;
+      consecutiveGazeRef.current = Math.max(0, consecutiveGazeRef.current - 1);
     }
 
     // E. Visual CNN Classification (Device / Person detections)
@@ -551,17 +551,15 @@ export default function App() {
     }
 
     if (alertType && webcamRef.current) {
-      const screenshot = webcamRef.current.getScreenshot();
-      if (screenshot) {
-        socket.send(
-          JSON.stringify({
-            type: "anomaly",
-            anomaly_type: alertType,
-            confidence: confidence,
-            frame: screenshot
-          })
-        );
-      }
+      const screenshot = webcamRef.current.getScreenshot() || null;
+      socket.send(
+        JSON.stringify({
+          type: "anomaly",
+          anomaly_type: alertType,
+          confidence: confidence,
+          frame: screenshot
+        })
+      );
     }
   }, []);
 

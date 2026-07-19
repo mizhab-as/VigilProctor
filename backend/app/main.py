@@ -38,6 +38,19 @@ app.add_middleware(
 @app.on_event("startup")
 def startup_event():
     init_db()
+    # Mark any stale active sessions from previous runs as completed
+    db = SessionLocal()
+    try:
+        stale_sessions = db.query(ExamSession).filter(ExamSession.status == "active").all()
+        for s in stale_sessions:
+            s.status = "completed"
+            s.end_time = s.start_time
+        db.commit()
+        print(f"[STARTUP] Successfully cleaned up {len(stale_sessions)} stale active sessions.")
+    except Exception as e:
+        print(f"[STARTUP] Error cleaning stale active sessions: {e}")
+    finally:
+        db.close()
 
 # Mount Static Files to serve keyframes and thumbnails
 app.mount("/static", StaticFiles(directory=DATA_DIR), name="static")
@@ -200,7 +213,12 @@ async def end_session(session_id: str, db: Session = Depends(get_db)):
 
 @app.get("/session/active")
 def get_active_sessions(db: Session = Depends(get_db)):
-    sessions = db.query(ExamSession).filter(ExamSession.status == "active").all()
+    # Only return sessions that are 'active' in database AND currently connected via websockets
+    active_socket_ids = list(manager.student_connections.keys())
+    sessions = db.query(ExamSession).filter(
+        ExamSession.status == "active",
+        ExamSession.id.in_(active_socket_ids)
+    ).all()
     result = []
     for s in sessions:
         # Get count of alerts to set health indicator

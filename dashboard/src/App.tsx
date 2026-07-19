@@ -849,58 +849,99 @@ export default function App() {
               <span className="live-tag">Live feed</span>
             </div>
 
-            <div className="incident-list">
+            <div style={{
+              background: 'var(--panel)',
+              border: '1px solid var(--line)',
+              borderRadius: '6px',
+              overflow: 'hidden'
+            }}>
               {liveAlerts.length === 0 ? (
                 <div style={{
                   padding: "48px",
-                  background: "var(--panel)",
-                  border: "1px dashed var(--line)",
-                  borderRadius: "6px",
                   textAlign: "center",
                   color: "var(--ink-soft)",
-                  fontSize: "13px"
+                  fontSize: "13px",
+                  fontStyle: "italic"
                 }}>
                   Listening for incoming telemetry incidents…
                 </div>
               ) : (
-                liveAlerts.map((alert, index) => (
-                  <div
-                    key={index}
-                    onClick={() => alert.thumbnail_path && setSelectedAlert(alert)}
-                    className="incident"
-                  >
-                    <div className="incident-icon">✕</div>
-                    <div className="incident-body">
-                      <div className="incident-top">
-                        <span className="student-badge">{alert.student_id}</span>
-                        <div className="flex items-center gap-3">
-                          {alert.video_clip_path && (
-                            <span style={{
-                              fontFamily: "'IBM Plex Mono', monospace",
-                              fontSize: "9px",
-                              border: "1px solid var(--oxford)",
-                              color: "var(--oxford)",
-                              borderRadius: "4px",
-                              padding: "1px 5px",
-                              fontWeight: 600
-                            }}>
-                              CLIP
-                            </span>
-                          )}
-                          <span className="incident-time">
+                <div style={{ overflowX: 'auto', maxHeight: '380px', overflowY: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left', fontFamily: "'IBM Plex Mono', monospace" }}>
+                    <thead>
+                      <tr style={{ background: 'var(--midnight)', borderBottom: '1px solid var(--line)', color: 'var(--ink-soft)' }}>
+                        <th style={{ padding: '12px 16px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Time</th>
+                        <th style={{ padding: '12px 16px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Student ID</th>
+                        <th style={{ padding: '12px 16px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Incident Class</th>
+                        <th style={{ padding: '12px 16px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Confidence</th>
+                        <th style={{ padding: '12px 16px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, textAlign: 'right' }}>Evidence</th>
+                      </tr>
+                    </thead>
+                    <tbody style={{ color: 'var(--ink)' }}>
+                      {liveAlerts.map((alert, index) => (
+                        <tr
+                          key={index}
+                          onClick={() => alert.thumbnail_path && setSelectedAlert(alert)}
+                          style={{
+                            borderBottom: '1px solid var(--line)',
+                            cursor: alert.thumbnail_path ? 'pointer' : 'default',
+                            transition: 'background .15s',
+                          }}
+                          className="incident-row"
+                        >
+                          <td style={{ padding: '12px 16px', color: 'var(--ink-soft)' }}>
                             {new Date(alert.timestamp).toLocaleTimeString()}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="incident-type">
-                        {alert.anomaly_type.replace(/Security Warning:\s*/i, "").replace(/!+$/, "")}
-                      </div>
-                      <div className="incident-conf">
-                        Confidence: {alert.confidence}%
-                      </div>
-                    </div>
-                  </div>
-                ))
+                          </td>
+                          <td style={{ padding: '12px 16px', fontWeight: 600 }}>
+                            <span style={{
+                              color: 'var(--oxford)',
+                              background: 'rgba(110, 147, 190, 0.12)',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '11px'
+                            }}>
+                              {alert.student_id}
+                            </span>
+                          </td>
+                          <td style={{ padding: '12px 16px', fontWeight: 500, fontFamily: "'Inter', sans-serif" }}>
+                            {alert.anomaly_type.replace(/Security Warning:\s*/i, "").replace(/!+$/, "")}
+                          </td>
+                          <td style={{ padding: '12px 16px', color: alert.confidence > 75 ? 'var(--seal)' : 'var(--gold)' }}>
+                            {alert.confidence}%
+                          </td>
+                          <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                            <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                              {alert.video_clip_path && (
+                                <span style={{
+                                  fontSize: "8.5px",
+                                  border: "1px solid var(--oxford)",
+                                  color: "var(--oxford)",
+                                  borderRadius: "4px",
+                                  padding: "1px 5px",
+                                  fontWeight: 600
+                                }}>
+                                  CLIP
+                                </span>
+                              )}
+                              {alert.thumbnail_path && (
+                                <span style={{
+                                  fontSize: "8.5px",
+                                  border: "1px solid var(--verdigris)",
+                                  color: "var(--verdigris)",
+                                  borderRadius: "4px",
+                                  padding: "1px 5px",
+                                  fontWeight: 600
+                                }}>
+                                  FRAME
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>
