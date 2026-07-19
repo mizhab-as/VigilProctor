@@ -30,6 +30,8 @@ interface HistoricalReport {
   start_time: string;
   end_time: string | null;
   status: string;
+  score?: string | null;
+  percentage?: number | null;
   total_alerts: number;
   alerts: Array<{
     id: number;
@@ -194,16 +196,23 @@ export default function App() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  // Views: "live", "reports", "benchmarks", or "questions"
-  const [currentView, setCurrentView] = useState<"live" | "reports" | "benchmarks" | "questions">("live");
+  // Views: "live", "reports", "benchmarks", "questions", or "students"
+  const [currentView, setCurrentView] = useState<"live" | "reports" | "benchmarks" | "questions" | "students">("live");
 
   // Live webcam feeds from students (keyed by session_id)
   const [liveFeeds, setLiveFeeds] = useState<Record<string, string>>({});
 
+  // Student directory state
+  const [studentsList, setStudentsList] = useState<{student_id: string; student_name: string; passcode: string}[]>([]);
+  const [uploadingStudents, setUploadingStudents] = useState(false);
+  const [studentsUploadStatus, setStudentsUploadStatus] = useState("");
+
   // Question management state
-  const [questionsList, setQuestionsList] = useState<{id: number; text: string; options: string[]}[]>([]);
-  const [newQuestion, setNewQuestion] = useState({ text: '', options: ['', '', '', ''] });
+  const [questionsList, setQuestionsList] = useState<{id: number; text: string; options: string[]; correct_option_idx?: number}[]>([]);
+  const [newQuestion, setNewQuestion] = useState({ text: '', options: ['', '', '', ''], correct_option_idx: 0 });
   const [savingQuestion, setSavingQuestion] = useState(false);
+  const [uploadingQuestions, setUploadingQuestions] = useState(false);
+  const [questionsUploadStatus, setQuestionsUploadStatus] = useState("");
 
   // Selected benchmark model index (Default to YOLOv5)
   const [benchmarkModelIdx, setBenchmarkModelIdx] = useState(4);
@@ -375,6 +384,76 @@ export default function App() {
     } catch (err) { console.error("Failed to load questions:", err); }
   };
 
+  // Fetch authorized students list
+  const fetchStudents = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/students");
+      if (res.ok) setStudentsList(await res.json());
+    } catch (err) {
+      console.error("Failed to load students:", err);
+    }
+  };
+
+  // Upload students CSV file
+  const handleStudentsCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingStudents(true);
+    setStudentsUploadStatus("");
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("http://localhost:8000/students/upload", {
+        method: "POST",
+        body: formData
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setStudentsUploadStatus(`Success: ${data.message}`);
+        fetchStudents();
+      } else {
+        setStudentsUploadStatus(`Error: ${data.detail || "Upload failed."}`);
+      }
+    } catch (err) {
+      setStudentsUploadStatus("Error: Failed to connect to server.");
+    } finally {
+      setUploadingStudents(false);
+      e.target.value = "";
+    }
+  };
+
+  // Upload questions file (JSON/CSV)
+  const handleQuestionsFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingQuestions(true);
+    setQuestionsUploadStatus("");
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("http://localhost:8000/questions/upload", {
+        method: "POST",
+        body: formData
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setQuestionsUploadStatus(`Success: ${data.message}`);
+        fetchQuestions();
+      } else {
+        setQuestionsUploadStatus(`Error: ${data.detail || "Questions upload failed."}`);
+      }
+    } catch (err) {
+      setQuestionsUploadStatus("Error: Failed to upload questions.");
+    } finally {
+      setUploadingQuestions(false);
+      e.target.value = "";
+    }
+  };
+
   // Submit a new question
   const submitQuestion = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -384,10 +463,14 @@ export default function App() {
       const res = await fetch("http://localhost:8000/questions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: newQuestion.text, options: newQuestion.options })
+        body: JSON.stringify({ 
+          text: newQuestion.text, 
+          options: newQuestion.options,
+          correct_option_idx: newQuestion.correct_option_idx
+        })
       });
       if (res.ok) {
-        setNewQuestion({ text: '', options: ['', '', '', ''] });
+        setNewQuestion({ text: '', options: ['', '', '', ''], correct_option_idx: 0 });
         await fetchQuestions();
       }
     } catch (err) { console.error("Failed to save question:", err); }
@@ -724,6 +807,12 @@ export default function App() {
             className={currentView === "questions" ? "active" : ""}
           >
             Manage Questions
+          </button>
+          <button
+            onClick={() => { setCurrentView("students"); fetchStudents(); }}
+            className={currentView === "students" ? "active" : ""}
+          >
+            Manage Students
           </button>
         </nav>
         <div className="header-right">
@@ -1156,6 +1245,25 @@ export default function App() {
                     />
                   </div>
                 ))}
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label style={{ display: 'block', fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', textTransform: 'uppercase', color: 'var(--verdigris)', letterSpacing: '0.1em' }}>Correct Answer Option</label>
+                  <select
+                    value={newQuestion.correct_option_idx}
+                    onChange={(e) => setNewQuestion((prev) => ({ ...prev, correct_option_idx: parseInt(e.target.value) }))}
+                    style={{
+                      background: 'var(--midnight)', border: '1px solid var(--line)',
+                      color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '13px',
+                      padding: '10px 14px', borderRadius: '6px', outline: 'none', cursor: 'pointer'
+                    }}
+                  >
+                    <option value={0}>Option A</option>
+                    <option value={1}>Option B</option>
+                    <option value={2}>Option C</option>
+                    <option value={3}>Option D</option>
+                  </select>
+                </div>
+
                 <button
                   type="submit"
                   disabled={savingQuestion}
@@ -1163,12 +1271,55 @@ export default function App() {
                     alignSelf: 'flex-start', background: 'var(--oxford)', color: 'var(--midnight)',
                     border: 'none', borderRadius: '6px', padding: '10px 28px',
                     fontFamily: "'Inter', sans-serif", fontSize: '12.5px', fontWeight: 600,
-                    cursor: savingQuestion ? 'not-allowed' : 'pointer', opacity: savingQuestion ? 0.6 : 1
+                    cursor: savingQuestion ? 'not-allowed' : 'pointer', opacity: savingQuestion ? 0.6 : 1,
+                    marginTop: 6
                   }}
                 >
                   {savingQuestion ? 'Saving…' : 'Add question'}
                 </button>
               </form>
+            </div>
+
+            {/* Batch Upload questions card */}
+            <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
+              <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: '8px', letterSpacing: '0.1em' }}>
+                Batch Import Questions (JSON or CSV)
+              </h3>
+              <p style={{ fontSize: '12px', color: 'var(--ink-soft)', margin: '0 0 16px 0', lineHeight: '1.5' }}>
+                Import multiple questions at once. Accepts JSON array format (with fields: <code>text</code>, <code>options</code>, and <code>correct_option_idx</code>) or CSV format (with headers: <code>text</code>, <code>option_0</code>, <code>option_1</code>, <code>option_2</code>, <code>option_3</code>, <code>correct_option_idx</code>).
+              </p>
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <input
+                  type="file"
+                  accept=".csv,.json"
+                  onChange={handleQuestionsFileUpload}
+                  disabled={uploadingQuestions}
+                  id="questions-file-upload"
+                  style={{ display: 'none' }}
+                />
+                <label
+                  htmlFor="questions-file-upload"
+                  style={{
+                    background: 'var(--oxford)', color: 'var(--midnight)',
+                    border: 'none', borderRadius: '6px', padding: '10px 24px',
+                    fontFamily: "'Inter', sans-serif", fontSize: '12.5px', fontWeight: 600,
+                    cursor: uploadingQuestions ? 'not-allowed' : 'pointer', opacity: uploadingQuestions ? 0.6 : 1
+                  }}
+                >
+                  {uploadingQuestions ? 'Uploading Questions…' : 'Select & Upload file'}
+                </label>
+
+                {questionsUploadStatus && (
+                  <span style={{
+                    fontSize: '12px',
+                    fontFamily: "'IBM Plex Mono', monospace",
+                    color: questionsUploadStatus.startsWith("Success") ? 'var(--verdigris)' : 'var(--seal)'
+                  }}>
+                    {questionsUploadStatus}
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Existing question list */}
@@ -1187,14 +1338,109 @@ export default function App() {
                         <p style={{ margin: 0, fontSize: '13px', color: 'var(--ink)', lineHeight: 1.5 }}>{q.text}</p>
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                        {q.options.map((opt, oi) => (
-                          <div key={oi} style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', color: 'var(--ink-soft)', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--line)', borderRadius: 4, padding: '6px 10px' }}>
-                            <strong style={{ color: 'var(--oxford)' }}>{String.fromCharCode(65 + oi)}.</strong> {opt}
-                          </div>
-                        ))}
+                        {q.options.map((opt, oi) => {
+                          const isCorrect = q.correct_option_idx !== undefined ? q.correct_option_idx === oi : false;
+                          return (
+                            <div key={oi} style={{
+                              fontFamily: "'IBM Plex Mono', monospace",
+                              fontSize: '10.5px',
+                              color: isCorrect ? 'var(--verdigris)' : 'var(--ink-soft)',
+                              background: isCorrect ? 'rgba(46, 196, 182, 0.05)' : 'rgba(255,255,255,0.03)',
+                              border: isCorrect ? '1px solid var(--verdigris)' : '1px solid var(--line)',
+                              borderRadius: 4,
+                              padding: '6px 10px'
+                            }}>
+                              <strong style={{ color: isCorrect ? 'var(--verdigris)' : 'var(--oxford)' }}>{String.fromCharCode(65 + oi)}.</strong> {opt} {isCorrect && '✓'}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : currentView === "students" ? (
+          /* Manage Students Tab */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div className="section-title">
+              <h2>Student directory</h2>
+              <span className="meta">{studentsList.length} authorized students</span>
+            </div>
+
+            {/* CSV Batch Upload */}
+            <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
+              <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: '8px', letterSpacing: '0.1em' }}>
+                Batch Import Student Directory
+              </h3>
+              <p style={{ fontSize: '12px', color: 'var(--ink-soft)', margin: '0 0 16px 0', lineHeight: '1.5' }}>
+                Upload a CSV file containing your cohort directory. Expected headers: <code>student_id</code>, <code>student_name</code>, <code>passcode</code>.
+              </p>
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleStudentsCSVUpload}
+                  disabled={uploadingStudents}
+                  id="csv-file-upload"
+                  style={{ display: 'none' }}
+                />
+                <label
+                  htmlFor="csv-file-upload"
+                  style={{
+                    background: 'var(--oxford)', color: 'var(--midnight)',
+                    border: 'none', borderRadius: '6px', padding: '10px 24px',
+                    fontFamily: "'Inter', sans-serif", fontSize: '12.5px', fontWeight: 600,
+                    cursor: uploadingStudents ? 'not-allowed' : 'pointer', opacity: uploadingStudents ? 0.6 : 1,
+                    display: 'inline-block'
+                  }}
+                >
+                  {uploadingStudents ? 'Uploading CSV…' : 'Select & Upload CSV'}
+                </label>
+
+                {studentsUploadStatus && (
+                  <span style={{
+                    fontSize: '12px',
+                    fontFamily: "'IBM Plex Mono', monospace",
+                    color: studentsUploadStatus.startsWith("Success") ? 'var(--verdigris)' : 'var(--seal)'
+                  }}>
+                    {studentsUploadStatus}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Directory List Table */}
+            <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', overflow: 'hidden' }}>
+              <h3 style={{ padding: '20px 24px 8px 24px', fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', letterSpacing: '0.1em' }}>
+                Authorized Student Directory
+              </h3>
+              {studentsList.length === 0 ? (
+                <div style={{ padding: '48px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: '13px', fontStyle: 'italic' }}>
+                  No students in directory. Upload a CSV file above to authorize logins.
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left', fontFamily: "'IBM Plex Mono', monospace" }}>
+                    <thead>
+                      <tr style={{ background: 'var(--midnight)', borderBottom: '1px solid var(--line)', color: 'var(--ink-soft)' }}>
+                        <th style={{ padding: '12px 24px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Registration ID</th>
+                        <th style={{ padding: '12px 24px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Full Name</th>
+                        <th style={{ padding: '12px 24px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Access Passcode</th>
+                      </tr>
+                    </thead>
+                    <tbody style={{ color: 'var(--ink)' }}>
+                      {studentsList.map((student) => (
+                        <tr key={student.student_id} style={{ borderBottom: '1px solid var(--line)' }}>
+                          <td style={{ padding: '12px 24px', fontWeight: 600, color: 'var(--oxford)' }}>{student.student_id}</td>
+                          <td style={{ padding: '12px 24px', fontFamily: "'Inter', sans-serif" }}>{student.student_name}</td>
+                          <td style={{ padding: '12px 24px' }}><code>{student.passcode}</code></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -1273,6 +1519,11 @@ export default function App() {
                         <div style={{ fontWeight: 'bold' }}>{s.student_id}</div>
                         <div style={{ fontSize: '10px', opacity: 0.8 }}>ID: {s.session_id.substring(0, 12)}…</div>
                         <div style={{ fontSize: '10px', opacity: 0.8 }}>Flags: {s.alert_count}</div>
+                        {s.score && (
+                          <div style={{ fontSize: '10px', opacity: 0.9, color: selectedSessionId === s.session_id ? 'var(--midnight)' : 'var(--verdigris)', marginTop: 2, fontWeight: 600 }}>
+                            Score: {s.score} ({s.percentage}%)
+                          </div>
+                        )}
                       </button>
                     ))}
                   </div>
@@ -1305,11 +1556,15 @@ export default function App() {
                       ['Status', sessionReport.status.toUpperCase()],
                       ['Started', new Date(sessionReport.start_time).toLocaleString()],
                       ['Ended', sessionReport.end_time ? new Date(sessionReport.end_time).toLocaleString() : '—'],
-                      ['Flags', String(sessionReport.total_alerts)]
+                      ['Flags', String(sessionReport.total_alerts)],
+                      ...(sessionReport.score ? [
+                        ['Score', sessionReport.score],
+                        ['Percentage', `${sessionReport.percentage}%`]
+                      ] : [])
                     ].map(([label, value]) => (
                       <React.Fragment key={label}>
                         <span style={{ fontSize: 9, textTransform: 'uppercase', opacity: 0.6, letterSpacing: '0.08em', paddingTop: 2 }}>{label}</span>
-                        <span style={{ color: label === 'Status' ? (sessionReport.status === 'completed' ? 'var(--verdigris)' : 'var(--gold)') : label === 'Flags' && sessionReport.total_alerts > 0 ? 'var(--seal)' : 'var(--ink)', fontWeight: label === 'Student' || label === 'Flags' ? 600 : 400, wordBreak: 'break-all', lineHeight: 1.4 }}>{value}</span>
+                        <span style={{ color: label === 'Status' ? (sessionReport.status === 'completed' ? 'var(--verdigris)' : 'var(--gold)') : label === 'Flags' && sessionReport.total_alerts > 0 ? 'var(--seal)' : 'var(--ink)', fontWeight: label === 'Student' || label === 'Flags' || label === 'Score' ? 600 : 400, wordBreak: 'break-all', lineHeight: 1.4 }}>{value}</span>
                       </React.Fragment>
                     ))}
                   </div>

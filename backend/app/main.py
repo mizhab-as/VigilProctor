@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.keyframe import MotionKeyframeExtractor
 from app.core.inference import ExamGuardInferenceEngine
-from app.database.models import init_db, SessionLocal, ExamSession, SessionAlert, QuestionModel
+from app.database.models import init_db, SessionLocal, ExamSession, SessionAlert, QuestionModel, AuthorizedStudent
 
 # Initialize directories for image persistence
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data"))
@@ -123,10 +123,15 @@ def create_thumbnail(img, max_size=(160, 120)):
 # Request models
 class SessionStartRequest(BaseModel):
     student_id: str
+    passcode: str
 
 class QuestionCreate(BaseModel):
     text: str
     options: list[str]
+    correct_option_idx: int = 0
+
+class ExamSubmitRequest(BaseModel):
+    answers: dict[str, int] # e.g. {"1": 3, "2": 1}
 
 @app.get("/questions")
 def get_questions(db: Session = Depends(get_db)):
@@ -150,7 +155,8 @@ def create_question(req: QuestionCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Exactly 4 options are required")
     new_q = QuestionModel(
         text=req.text,
-        options_json=json.dumps(req.options)
+        options_json=json.dumps(req.options),
+        correct_option_idx=req.correct_option_idx
     )
     db.add(new_q)
     db.commit()
@@ -158,15 +164,33 @@ def create_question(req: QuestionCreate, db: Session = Depends(get_db)):
     return {
         "id": new_q.id,
         "text": new_q.text,
-        "options": req.options
+        "options": req.options,
+        "correct_option_idx": new_q.correct_option_idx
     }
 
 @app.post("/session/start")
 async def start_session(req: SessionStartRequest, db: Session = Depends(get_db)):
+    # Validate credentials
+    student = db.query(AuthorizedStudent).filter(
+        AuthorizedStudent.student_id == req.student_id.strip()
+    ).first()
+
+    if not student:
+        raise HTTPException(
+            status_code=401,
+            detail="Registration ID not found. Please contact your invigilator."
+        )
+
+    if student.passcode != req.passcode.strip():
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect passcode. Please check your credentials."
+        )
+
     session_id = str(uuid.uuid4())
     new_session = ExamSession(
         id=session_id,
-        student_id=req.student_id,
+        student_id=student.student_id,
         start_time=datetime.utcnow(),
         status="active"
     )
@@ -177,7 +201,7 @@ async def start_session(req: SessionStartRequest, db: Session = Depends(get_db))
     broadcast_task = {
         "type": "session_status",
         "session_id": session_id,
-        "student_id": req.student_id,
+        "student_id": student.student_id,
         "status": "active",
         "start_time": new_session.start_time.isoformat()
     }
@@ -260,6 +284,8 @@ def get_all_sessions(student_id: str = "", db: Session = Depends(get_db)):
             "start_time": s.start_time.isoformat(),
             "end_time": s.end_time.isoformat() if s.end_time else None,
             "status": s.status,
+            "score": s.score,
+            "percentage": s.percentage,
             "alert_count": alert_count,
             "status_color": status_color
         })
@@ -302,6 +328,8 @@ def get_session_report(session_id: str, db: Session = Depends(get_db)):
         "start_time": session.start_time.isoformat(),
         "end_time": session.end_time.isoformat() if session.end_time else None,
         "status": session.status,
+        "score": session.score,
+        "percentage": session.percentage,
         "total_alerts": len(alerts),
         "alerts": alert_logs,
         "timeline_chart": timeline_chart
@@ -532,3 +560,169 @@ async def override_alert_status(
     await manager.broadcast_to_dashboards(override_payload)
 
     return {"status": "success", "override_status": status}
+
+@app.get("/students")
+def get_authorized_students(db: Session = Depends(get_db)):
+    students = db.query(AuthorizedStudent).all()
+    return [
+        {"student_id": s.student_id, "student_name": s.student_name, "passcode": s.passcode}
+        for s in students
+    ]
+
+@app.post("/students/upload")
+async def upload_students_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    import csv
+    import io
+    content = await file.read()
+    try:
+        csv_text = content.decode("utf-8")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid file encoding. Must be UTF-8 CSV.")
+
+    reader = csv.DictReader(io.StringIO(csv_text))
+    # Required headers: student_id, student_name, passcode
+    # Support common variants like registration_id, name, password
+    student_count = 0
+    for row in reader:
+        sid = row.get("student_id") or row.get("registration_id") or row.get("id")
+        sname = row.get("student_name") or row.get("name")
+        passcode = row.get("passcode") or row.get("password") or row.get("pass")
+
+        if not sid or not sname or not passcode:
+            continue
+
+        sid = sid.strip()
+        sname = sname.strip()
+        passcode = passcode.strip()
+
+        # Upsert
+        student = db.query(AuthorizedStudent).filter(AuthorizedStudent.student_id == sid).first()
+        if student:
+            student.student_name = sname
+            student.passcode = passcode
+        else:
+            student = AuthorizedStudent(student_id=sid, student_name=sname, passcode=passcode)
+            db.add(student)
+        student_count += 1
+
+    db.commit()
+    return {"status": "success", "message": f"Successfully imported {student_count} students."}
+
+@app.post("/questions/upload")
+async def upload_questions_file(file: UploadFile = File(...), db: Session = Depends(get_db)):
+    import csv
+    import io
+    content = await file.read()
+    filename = file.filename.lower()
+
+    questions_loaded = 0
+    if filename.endswith(".json"):
+        try:
+            data = json.loads(content.decode("utf-8"))
+            if not isinstance(data, list):
+                raise ValueError("JSON file must contain a list of questions.")
+            for item in data:
+                text_q = item.get("text")
+                options = item.get("options")
+                correct = item.get("correct_option_idx", 0)
+                if not text_q or not isinstance(options, list) or len(options) != 4:
+                    continue
+                q = QuestionModel(text=text_q, options_json=json.dumps(options), correct_option_idx=int(correct))
+                db.add(q)
+                questions_loaded += 1
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to parse JSON file: {e}")
+    else:
+        # Default to CSV parsing
+        try:
+            csv_text = content.decode("utf-8")
+            # Expected headers: text, option_0, option_1, option_2, option_3, correct_option_idx
+            reader = csv.DictReader(io.StringIO(csv_text))
+            for row in reader:
+                text_q = row.get("text")
+                opt0 = row.get("option_0") or row.get("option0")
+                opt1 = row.get("option_1") or row.get("option1")
+                opt2 = row.get("option_2") or row.get("option2")
+                opt3 = row.get("option_3") or row.get("option3")
+                correct = row.get("correct_option_idx") or row.get("correct") or "0"
+
+                if not text_q or not opt0 or not opt1 or not opt2 or not opt3:
+                    continue
+
+                options = [opt0.strip(), opt1.strip(), opt2.strip(), opt3.strip()]
+                q = QuestionModel(text=text_q.strip(), options_json=json.dumps(options), correct_option_idx=int(correct))
+                db.add(q)
+                questions_loaded += 1
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to parse CSV file: {e}")
+
+    db.commit()
+    return {"status": "success", "message": f"Successfully loaded {questions_loaded} questions into database."}
+
+@app.post("/session/{session_id}/submit")
+async def submit_exam_grading(session_id: str, req: ExamSubmitRequest, db: Session = Depends(get_db)):
+    session = db.query(ExamSession).filter(ExamSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Exam session not found.")
+
+    if session.status == "completed":
+        # Already graded, just return previous result if available
+        try:
+            score_parts = session.score.split("/")
+            correct = int(score_parts[0])
+            total = int(score_parts[1])
+        except Exception:
+            correct = 0
+            total = 0
+        return {
+            "status": "already_submitted",
+            "correct_answers": correct,
+            "total_questions": total,
+            "percentage": session.percentage or 0.0,
+            "student_id": session.student_id
+        }
+
+    # Fetch all questions in database
+    db_questions = db.query(QuestionModel).all()
+    q_map = {q.id: q.correct_option_idx for q in db_questions}
+
+    total_questions = len(db_questions)
+    correct_answers = 0
+
+    # Compare answers
+    for q_id_str, selected_idx in req.answers.items():
+        try:
+            q_id = int(q_id_str)
+        except ValueError:
+            continue
+        if q_id in q_map and q_map[q_id] == selected_idx:
+            correct_answers += 1
+
+    percentage = round((correct_answers / total_questions) * 100, 1) if total_questions > 0 else 0.0
+
+    # Complete the session details
+    session.status = "completed"
+    session.end_time = datetime.utcnow()
+    session.score = f"{correct_answers}/{total_questions}"
+    session.percentage = percentage
+    db.commit()
+
+    # Broadcast session completion status to dashboard
+    broadcast_task = {
+        "type": "session_status",
+        "session_id": session_id,
+        "student_id": session.student_id,
+        "status": "completed",
+        "end_time": session.end_time.isoformat(),
+        "score": session.score,
+        "percentage": percentage
+    }
+    await manager.broadcast_to_dashboards(broadcast_task)
+
+    return {
+        "status": "success",
+        "correct_answers": correct_answers,
+        "total_questions": total_questions,
+        "percentage": percentage,
+        "student_id": session.student_id
+    }

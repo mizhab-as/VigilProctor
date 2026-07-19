@@ -19,6 +19,8 @@ class ExamSession(Base):
     start_time = Column(DateTime, default=datetime.utcnow, nullable=False)
     end_time = Column(DateTime, nullable=True)
     status = Column(String, default="active", nullable=False) # "active" or "completed"
+    score = Column(String, nullable=True) # e.g., "3/4"
+    percentage = Column(Float, nullable=True) # e.g., 75.0
 
     alerts = relationship("SessionAlert", back_populates="session", cascade="all, delete-orphan")
 
@@ -43,13 +45,21 @@ class QuestionModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     text = Column(String, nullable=False)
     options_json = Column(String, nullable=False) # JSON encoded list of options
+    correct_option_idx = Column(Integer, default=0, nullable=False)
+
+class AuthorizedStudent(Base):
+    __tablename__ = "authorized_students"
+
+    student_id = Column(String, primary_key=True, index=True)
+    student_name = Column(String, nullable=False)
+    passcode = Column(String, nullable=False)
 
 def init_db():
     Base.metadata.create_all(bind=engine)
     # Check if columns exist, if not, add them
     from sqlalchemy import text
     with engine.connect() as conn:
-        # Check video_clip_path
+        # Check video_clip_path in session_alerts
         try:
             conn.execute(text("SELECT video_clip_path FROM session_alerts LIMIT 1"))
         except Exception:
@@ -59,7 +69,7 @@ def init_db():
             except Exception as e:
                 print(f"[DATABASE] Alter table video_clip_path failed: {e}")
 
-        # Check override_status
+        # Check override_status in session_alerts
         try:
             conn.execute(text("SELECT override_status FROM session_alerts LIMIT 1"))
         except Exception:
@@ -68,6 +78,37 @@ def init_db():
                 print("[DATABASE] Altered table session_alerts to add override_status column.")
             except Exception as e:
                 print(f"[DATABASE] Alter table override_status failed: {e}")
+
+        # Check correct_option_idx in questions
+        try:
+            conn.execute(text("SELECT correct_option_idx FROM questions LIMIT 1"))
+        except Exception:
+            try:
+                conn.execute(text("ALTER TABLE questions ADD COLUMN correct_option_idx INTEGER DEFAULT 0"))
+                conn.execute(text("UPDATE questions SET correct_option_idx = 0"))
+                print("[DATABASE] Altered table questions to add correct_option_idx column.")
+            except Exception as e:
+                print(f"[DATABASE] Alter table correct_option_idx failed: {e}")
+
+        # Check score in exam_sessions
+        try:
+            conn.execute(text("SELECT score FROM exam_sessions LIMIT 1"))
+        except Exception:
+            try:
+                conn.execute(text("ALTER TABLE exam_sessions ADD COLUMN score VARCHAR"))
+                print("[DATABASE] Altered table exam_sessions to add score column.")
+            except Exception as e:
+                print(f"[DATABASE] Alter table score failed: {e}")
+
+        # Check percentage in exam_sessions
+        try:
+            conn.execute(text("SELECT percentage FROM exam_sessions LIMIT 1"))
+        except Exception:
+            try:
+                conn.execute(text("ALTER TABLE exam_sessions ADD COLUMN percentage FLOAT"))
+                print("[DATABASE] Altered table exam_sessions to add percentage column.")
+            except Exception as e:
+                print(f"[DATABASE] Alter table percentage failed: {e}")
 
     # Initialize questions if empty
     import json
@@ -79,7 +120,8 @@ def init_db():
             default_questions = [
                 {
                     "text": "According to Ramzan et al. (2024), which CNN/Object Detection architecture achieved the highest performance for online exam proctoring?",
-                    "options": ["DenseNet121", "Inception-V3", "Inception-ResNetV2", "YOLOv5"]
+                    "options": ["DenseNet121", "Inception-V3", "Inception-ResNetV2", "YOLOv5"],
+                    "correct": 3
                 },
                 {
                     "text": "In motion-based keyframe extraction, what is the role of the frame differencing threshold?",
@@ -88,7 +130,8 @@ def init_db():
                         "To eliminate redundant static frames and only pass high-motion transitions to the classification model",
                         "To enhance image resolution and lighting levels using histogram models",
                         "To track audio level anomalies and background voice cues"
-                    ]
+                    ],
+                    "correct": 1
                 },
                 {
                     "text": "What is the primary benefit of deploying a WebSocket connection instead of HTTP polling in online proctoring systems?",
@@ -97,7 +140,8 @@ def init_db():
                         "Reducing connection establishment overhead and enabling low-latency, real-time alert broadcasts",
                         "Avoiding the need for client-side webcam permissions",
                         "Enabling off-grid local storage without network streams"
-                    ]
+                    ],
+                    "correct": 1
                 },
                 {
                     "text": "Which of the following is a privacy-by-design policy recommended for proctoring systems?",
@@ -106,13 +150,15 @@ def init_db():
                         "Storing only the keyframes classified as abnormal, and immediately discarding normal frames",
                         "Uploading all user credentials directly to public clouds",
                         "Disabling all local webcam warnings"
-                    ]
+                    ],
+                    "correct": 1
                 }
             ]
             for dq in default_questions:
                 q = QuestionModel(
                     text=dq["text"],
-                    options_json=json.dumps(dq["options"])
+                    options_json=json.dumps(dq["options"]),
+                    correct_option_idx=dq["correct"]
                 )
                 db_session.add(q)
             db_session.commit()

@@ -56,6 +56,8 @@ const CLASS_LABELS: Record<number, string> = {
 
 export default function App() {
   const [studentId, setStudentId] = useState("");
+  const [passcode, setPasscode] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [sessionStarted, setSessionStarted] = useState(false);
   const [sessionId, setSessionId] = useState("");
   const [answers, setAnswers] = useState<Record<number, number>>({});
@@ -64,6 +66,7 @@ export default function App() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [examSubmitted, setExamSubmitted] = useState(false);
+  const [submissionResult, setSubmissionResult] = useState<any | null>(null);
   const [modelLoading, setModelLoading] = useState(false);
   const [modelError, setModelError] = useState<string | null>(null);
   const [modelReady, setModelReady] = useState(false);
@@ -566,7 +569,12 @@ export default function App() {
   // Handle start session API and WS setup
   const startExam = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!studentId.trim()) return;
+    if (!studentId.trim() || !passcode.trim()) {
+      setLoginError("Please enter both Registration ID and Passcode.");
+      return;
+    }
+
+    setLoginError("");
 
     try {
       // Fetch dynamic questions from backend (fall back to MOCK_QUESTIONS if unavailable)
@@ -585,11 +593,15 @@ export default function App() {
       const response = await fetch("http://localhost:8000/session/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ student_id: studentId.trim() })
+        body: JSON.stringify({ 
+          student_id: studentId.trim(),
+          passcode: passcode.trim()
+        })
       });
 
       if (!response.ok) {
-        throw new Error("Failed to start session on backend");
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || "Authentication failed. Invalid Registration ID or Passcode.");
       }
 
       const data = await response.json();
@@ -622,12 +634,13 @@ export default function App() {
       };
 
       setWs(socket);
-    } catch (err) {
-      alert("Failed to initialize session. Please check that backend is running at port 8000.");
+    } catch (err: any) {
+      setLoginError(err.message || "Failed to initialize session. Please check that backend is running.");
       console.error(err);
     }
   };
 
+  // Handle submit exam API and WS closure
   // Handle submit exam API and WS closure
   const submitExam = useCallback(async () => {
     stopAudioAnalysis();
@@ -636,11 +649,17 @@ export default function App() {
     }
     if (sessionId) {
       try {
-        await fetch(`http://localhost:8000/session/${sessionId}/end`, {
-          method: "POST"
+        const res = await fetch(`http://localhost:8000/session/${sessionId}/submit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ answers })
         });
+        if (res.ok) {
+          const resultData = await res.json();
+          setSubmissionResult(resultData);
+        }
       } catch (err) {
-        console.error("Failed to end session cleanly:", err);
+        console.error("Failed to submit exam grading:", err);
       }
     }
     setSessionStarted(false);
@@ -648,7 +667,7 @@ export default function App() {
     // Reset motion states
     prevFrameGrayRef.current = null;
     diffHistoryRef.current = [];
-  }, [ws, sessionId]);
+  }, [ws, sessionId, answers]);
 
   // Client-side video frame capture
   const captureAndEvaluate = useCallback(async () => {
@@ -812,10 +831,11 @@ export default function App() {
 
 
   if (examSubmitted) {
+    const isPassed = submissionResult ? submissionResult.percentage >= 50.0 : false;
     return (
       <div style={{ height: '100vh', background: '#F6F3EC', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Inter', sans-serif" }}>
-        <div style={{ width: '100%', maxWidth: 420, background: '#fff', border: '1px solid #E4DFD2', borderRadius: 12, padding: '32px 36px', textAlign: 'center' }}>
-          {/* Compact wax seal */}
+        <div style={{ width: '100%', maxWidth: 440, background: '#fff', border: '1px solid #E4DFD2', borderRadius: 12, padding: '32px 36px', textAlign: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+          {/* Animated Seal */}
           <div style={{ width: 56, height: 56, margin: '0 auto 20px' }}>
             <svg viewBox="0 0 100 100" style={{ width: '100%', height: '100%', overflow: 'visible' }} className="seal-animated">
               <path d="M 50 4 C 60 3, 75 7, 85 15 C 93 25, 97 40, 96 50 C 95 65, 93 75, 85 85 C 75 93, 60 97, 50 96 C 35 95, 25 93, 15 85 C 7 75, 3 60, 4 50 C 5 35, 7 25, 15 15 C 25 7, 40 3, 50 4 Z" fill="#8C2F39" stroke="#73222A" strokeWidth="1.5" />
@@ -823,19 +843,64 @@ export default function App() {
               <text x="50" y="56" textAnchor="middle" fontFamily="Newsreader, serif" fontSize="20" fontWeight="700" fill="#F6F3EC">EG</text>
             </svg>
           </div>
-          <h1 style={{ fontFamily: "'Newsreader', serif", fontWeight: 700, fontSize: 22, margin: '0 0 8px', color: '#1C2430' }}>Exam Submitted</h1>
-          <p style={{ fontSize: 12.5, color: '#5B6472', lineHeight: 1.6, margin: '0 0 20px' }}>
-            Session logs recorded in the invigilator ledger.
+          <h1 style={{ fontFamily: "'Newsreader', serif", fontWeight: 700, fontSize: 24, margin: '0 0 8px', color: '#1C2430' }}>Exam Completed</h1>
+          <p style={{ fontSize: 13, color: '#5B6472', lineHeight: 1.6, margin: '0 0 24px' }}>
+            Your answers have been graded. Here is your scorecard:
           </p>
-          <div style={{ background: '#F6F3EC', border: '1px solid #E4DFD2', borderRadius: 8, padding: '14px 16px', textAlign: 'left', fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: '#5B6472', marginBottom: 20 }}>
-            <div style={{ marginBottom: 4 }}><span style={{ color: '#A8A296' }}>Student:</span> {studentId}</div>
-            <div style={{ marginBottom: 4 }}><span style={{ color: '#A8A296' }}>Session:</span> {sessionId.substring(0, 24)}…</div>
-            <div><span style={{ color: '#A8A296' }}>Time:</span> {new Date().toLocaleTimeString()}</div>
-          </div>
+
+          {submissionResult && (
+            <div style={{
+              background: '#F6F3EC',
+              border: '1px solid #E4DFD2',
+              borderRadius: 8,
+              padding: '20px',
+              textAlign: 'center',
+              marginBottom: 24
+            }}>
+              <div style={{
+                fontSize: 32,
+                fontWeight: 800,
+                color: isPassed ? '#10B981' : '#EF4444',
+                marginBottom: 6
+              }}>
+                {submissionResult.percentage}%
+              </div>
+              <div style={{
+                display: 'inline-block',
+                fontSize: 10,
+                fontFamily: "'IBM Plex Mono', monospace",
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                background: isPassed ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                color: isPassed ? '#10B981' : '#EF4444',
+                padding: '4px 12px',
+                borderRadius: 999,
+                marginBottom: 16
+              }}>
+                {isPassed ? 'PASSED' : 'FAILED'}
+              </div>
+              
+              <div style={{ 
+                borderTop: '1px dashed #E4DFD2',
+                paddingTop: 14,
+                fontFamily: "'IBM Plex Mono', monospace", 
+                fontSize: 11, 
+                color: '#5B6472',
+                textAlign: 'left'
+              }}>
+                <div style={{ marginBottom: 6 }}><span style={{ color: '#A8A296' }}>Student ID:</span> {studentId}</div>
+                <div style={{ marginBottom: 6 }}><span style={{ color: '#A8A296' }}>Session ID:</span> {sessionId.substring(0, 18)}…</div>
+                <div style={{ marginBottom: 6 }}><span style={{ color: '#A8A296' }}>Score:</span> {submissionResult.correct_answers} / {submissionResult.total_questions} Correct</div>
+                <div><span style={{ color: '#A8A296' }}>Completed:</span> {new Date().toLocaleTimeString()}</div>
+              </div>
+            </div>
+          )}
+
           <button
             onClick={() => {
-              setExamSubmitted(false); setStudentId(''); setSessionId('');
-              setAnswers({}); setCurrentQuestionIdx(0); setTimeLeft(2700); setWarnings([]);
+              setExamSubmitted(false); setStudentId(''); setPasscode(''); setLoginError(''); setSessionId('');
+              setAnswers({}); setCurrentQuestionIdx(0); setTimeLeft(2700); setWarnings([]); setSubmissionResult(null);
             }}
             style={{ width: '100%', background: '#1E3A5F', color: '#F6F3EC', border: 'none', borderRadius: 8, padding: '12px', fontFamily: "'Inter', sans-serif", fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
           >
@@ -881,6 +946,45 @@ export default function App() {
                   onChange={(e) => setStudentId(e.target.value)}
                 />
               </div>
+
+              <div className="field" style={{ marginTop: 14 }}>
+                <label htmlFor="student-passcode">Access Passcode</label>
+                <input
+                  id="student-passcode"
+                  type="password"
+                  required
+                  placeholder="Enter passcode"
+                  value={passcode}
+                  onChange={(e) => setPasscode(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1.5px solid var(--line)',
+                    borderRadius: '6px',
+                    background: 'var(--panel)',
+                    color: 'var(--ink)',
+                    fontSize: '13px',
+                    outline: 'none',
+                    transition: 'border-color .15s ease'
+                  }}
+                />
+              </div>
+
+              {loginError && (
+                <div style={{
+                  color: '#8C2F39',
+                  background: 'rgba(140, 47, 57, 0.08)',
+                  border: '1px solid rgba(140, 47, 57, 0.15)',
+                  borderRadius: '6px',
+                  padding: '10px 12px',
+                  fontSize: '12px',
+                  marginTop: '14px',
+                  textAlign: 'left',
+                  lineHeight: '1.4'
+                }}>
+                  {loginError}
+                </div>
+              )}
 
               {/* Sensor readiness panel */}
               <div className="sensor-panel">
