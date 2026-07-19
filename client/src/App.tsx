@@ -492,9 +492,32 @@ export default function App() {
         }
 
         if (classId > 0) {
-          cnnViolation = true;
-          cnnLabel = CLASS_LABELS[classId];
-          cnnConfidence = maxVal;
+          // Sensor Fusion Validation: Cross-check the CNN's output against actual hardware sensors
+          // (FaceMesh geometry, Audio amplitude) to prevent false positives from random weights.
+          let isVerified = true;
+
+          if (classId === 3 && distinctFacesCount <= 1) {
+            // CNN thinks there are multiple people, but FaceMesh only tracks 1 face (or 0)
+            isVerified = false;
+          }
+          if (classId === 2 && !headViolation) {
+            // CNN thinks head is moving, but FaceMesh ratios are normal
+            isVerified = false;
+          }
+          if (classId === 4 && consecutiveSpeechRef.current === 0) {
+            // CNN thinks student is talking, but mic RMS / speech energy ratio is normal
+            isVerified = false;
+          }
+          if (classId === 1 && verticalRatio <= 1.32 && leftGazeIndex >= 0.32 && rightGazeIndex >= 0.32) {
+            // CNN thinks device is used, but student is looking straight at the screen
+            isVerified = false;
+          }
+
+          if (isVerified) {
+            cnnViolation = true;
+            cnnLabel = CLASS_LABELS[classId];
+            cnnConfidence = maxVal;
+          }
         }
       } catch (ortErr) {
         console.error("[ort] CNN evaluate failed:", ortErr);
