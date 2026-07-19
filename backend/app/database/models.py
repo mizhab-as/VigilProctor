@@ -11,11 +11,19 @@ Base = declarative_base()
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+class ExamModel(Base):
+    __tablename__ = "exams"
+
+    id = Column(String, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+
 class ExamSession(Base):
     __tablename__ = "exam_sessions"
 
     id = Column(String, primary_key=True, index=True)
     student_id = Column(String, index=True, nullable=False)
+    exam_id = Column(String, ForeignKey("exams.id"), nullable=True, default="default")
     start_time = Column(DateTime, default=datetime.utcnow, nullable=False)
     end_time = Column(DateTime, nullable=True)
     status = Column(String, default="active", nullable=False) # "active" or "completed"
@@ -43,6 +51,7 @@ class QuestionModel(Base):
     __tablename__ = "questions"
 
     id = Column(Integer, primary_key=True, index=True)
+    exam_id = Column(String, ForeignKey("exams.id"), nullable=False, default="default")
     text = Column(String, nullable=False)
     options_json = Column(String, nullable=False) # JSON encoded list of options
     correct_option_idx = Column(Integer, default=0, nullable=False)
@@ -110,10 +119,37 @@ def init_db():
             except Exception as e:
                 print(f"[DATABASE] Alter table percentage failed: {e}")
 
-    # Initialize questions if empty
+        # Check exam_id in questions
+        try:
+            conn.execute(text("SELECT exam_id FROM questions LIMIT 1"))
+        except Exception:
+            try:
+                conn.execute(text("ALTER TABLE questions ADD COLUMN exam_id VARCHAR DEFAULT 'default'"))
+                print("[DATABASE] Altered table questions to add exam_id column.")
+            except Exception as e:
+                print(f"[DATABASE] Alter table exam_id failed on questions: {e}")
+
+        # Check exam_id in exam_sessions
+        try:
+            conn.execute(text("SELECT exam_id FROM exam_sessions LIMIT 1"))
+        except Exception:
+            try:
+                conn.execute(text("ALTER TABLE exam_sessions ADD COLUMN exam_id VARCHAR DEFAULT 'default'"))
+                print("[DATABASE] Altered table exam_sessions to add exam_id column.")
+            except Exception as e:
+                print(f"[DATABASE] Alter table exam_id failed on exam_sessions: {e}")
+
+    # Initialize exams and questions if empty
     import json
     db_session = SessionLocal()
     try:
+        # Seed default exam
+        count_exams = db_session.query(ExamModel).count()
+        if count_exams == 0:
+            print("[DATABASE] Seeding default exam...")
+            db_session.add(ExamModel(id="default", title="Default Proctoring Exam", description="General proctoring questions"))
+            db_session.commit()
+
         count = db_session.query(QuestionModel).count()
         if count == 0:
             print("[DATABASE] Initializing default exam questions...")
@@ -156,6 +192,7 @@ def init_db():
             ]
             for dq in default_questions:
                 q = QuestionModel(
+                    exam_id="default",
                     text=dq["text"],
                     options_json=json.dumps(dq["options"]),
                     correct_option_idx=dq["correct"]
@@ -164,7 +201,7 @@ def init_db():
             db_session.commit()
             print("[DATABASE] Default exam questions populated successfully.")
     except Exception as e:
-        print(f"[DATABASE] Question initialization failed: {e}")
+        print(f"[DATABASE] Exam/Question initialization failed: {e}")
         db_session.rollback()
     finally:
         db_session.close()

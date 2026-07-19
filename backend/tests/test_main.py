@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.database.models import Base, ExamSession, SessionAlert, AuthorizedStudent, QuestionModel
+from app.database.models import Base, ExamSession, SessionAlert, AuthorizedStudent, QuestionModel, ExamModel
 from app.main import app, get_db
 
 # Use a test-specific file-based SQLite database
@@ -32,13 +32,14 @@ def setup_database():
     
     Base.metadata.create_all(bind=engine)
     
-    # Pre-populate some authorized students and questions for testing
+    # Pre-populate default exam, authorized students and questions for testing
     db = TestingSessionLocal()
+    db.add(ExamModel(id="default", title="Default Proctoring Exam", description="General proctoring questions"))
     db.add(AuthorizedStudent(student_id="STUDENT-TEST-01", student_name="Alice Test", passcode="secret123"))
     db.add(AuthorizedStudent(student_id="STUDENT-TEST-02", student_name="Bob Test", passcode="secret456"))
     
-    db.add(QuestionModel(id=101, text="What is 1+1?", options_json=json.dumps(["1", "2", "3", "4"]), correct_option_idx=1))
-    db.add(QuestionModel(id=102, text="What is 2+2?", options_json=json.dumps(["2", "3", "4", "5"]), correct_option_idx=2))
+    db.add(QuestionModel(id=101, exam_id="default", text="What is 1+1?", options_json=json.dumps(["1", "2", "3", "4"]), correct_option_idx=1))
+    db.add(QuestionModel(id=102, exam_id="default", text="What is 2+2?", options_json=json.dumps(["2", "3", "4", "5"]), correct_option_idx=2))
     db.commit()
     db.close()
 
@@ -57,17 +58,17 @@ client = TestClient(app)
 
 def test_start_session_unauthorized():
     # Bad registration ID
-    response = client.post("/session/start", json={"student_id": "UNKNOWN", "passcode": "secret123"})
+    response = client.post("/session/start", json={"student_id": "UNKNOWN", "passcode": "secret123", "exam_id": "default"})
     assert response.status_code == 401
     assert "Registration ID not found" in response.json()["detail"]
 
     # Bad passcode
-    response = client.post("/session/start", json={"student_id": "STUDENT-TEST-01", "passcode": "wrong_code"})
+    response = client.post("/session/start", json={"student_id": "STUDENT-TEST-01", "passcode": "wrong_code", "exam_id": "default"})
     assert response.status_code == 401
     assert "Incorrect passcode" in response.json()["detail"]
 
 def test_start_session_success():
-    response = client.post("/session/start", json={"student_id": "STUDENT-TEST-01", "passcode": "secret123"})
+    response = client.post("/session/start", json={"student_id": "STUDENT-TEST-01", "passcode": "secret123", "exam_id": "default"})
     assert response.status_code == 200
     data = response.json()
     assert "session_id" in data
@@ -88,9 +89,42 @@ def test_students_upload_csv():
     assert "STUDENT-CSV-01" in ids
     assert "STUDENT-CSV-02" in ids
 
+def test_create_and_get_exams():
+    # Create exam
+    resp = client.post("/exams", json={"id": "cyber_exam", "title": "Cybersecurity Exam"})
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "success"
+
+    # Get exams
+    resp = client.get("/exams")
+    assert resp.status_code == 200
+    ids = [e["id"] for e in resp.json()]
+    assert "cyber_exam" in ids
+    assert "default" in ids
+
+def test_questions_upload_by_exam():
+    csv_data = "text,option_0,option_1,option_2,option_3,correct_option_idx\nWhat is a firewall?,software,hardware,both,neither,2\n"
+    files = {"file": ("cyber.csv", csv_data, "text/csv")}
+    # Form data parameter 'exam_id'
+    response = client.post("/questions/upload", files=files, data={"exam_id": "cyber_exam"})
+    assert response.status_code == 200
+    assert "Successfully loaded 1 questions" in response.json()["message"]
+
+    # Retrieve default questions - firewall shouldn't be there
+    res_def = client.get("/questions?exam_id=default")
+    assert res_def.status_code == 200
+    texts = [q["text"] for q in res_def.json()]
+    assert "What is a firewall?" not in texts
+
+    # Retrieve cyber questions - firewall should be there
+    res_cyber = client.get("/questions?exam_id=cyber_exam")
+    assert res_cyber.status_code == 200
+    texts = [q["text"] for q in res_cyber.json()]
+    assert "What is a firewall?" in texts
+
 def test_exam_grading_submission():
     # Start a session
-    start_resp = client.post("/session/start", json={"student_id": "STUDENT-TEST-02", "passcode": "secret456"})
+    start_resp = client.post("/session/start", json={"student_id": "STUDENT-TEST-02", "passcode": "secret456", "exam_id": "default"})
     session_id = start_resp.json()["session_id"]
 
     # Submit answers: Q101 correct option is 1, Q102 correct option is 2

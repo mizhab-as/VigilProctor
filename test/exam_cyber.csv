@@ -1,0 +1,11 @@
+text,option_0,option_1,option_2,option_3,correct_option_idx
+"What does CIA stand for in cybersecurity?",Central Intelligence Agency,Confidentiality Integrity Availability,Cryptographic Information Access,Control Isolation Authentication,1
+"Which attack technique redirects users to fraudulent websites using fake DNS responses?",SQL Injection,Phishing,DNS Spoofing,Man-in-the-Middle,2
+"What is a software vulnerability that is exploited before a developer releases a patch?",Zero-Day Vulnerability,Buffer Overflow,Cross-Site Scripting,Backdoor Access,0
+"Which security protocol is used to secure network communications over HTTPS?",SSH,SSL/TLS,FTP,SMTP,1
+"What type of malware encrypts a victim's files and demands payment for decryption?",Spyware,Adware,Ransomware,Trojan Horse,2
+"Which firewall type examines connection states to determine access permissions?",Packet Filter,Stateful Inspection Firewall,Application Gateway,Proxy Firewall,1
+"What hashing algorithm is commonly considered insecure for password hashing today?",SHA-256,MD5,bcrypt,Argon2,1
+"What attack involves flooding a server with excessive traffic to make it unavailable?",Phishing attack,DDoS attack,SQL injection,Cross-Site Scripting,1
+"What is the process of hiding information within an innocent-looking carrier medium?",Cryptography,Steganography,Decryption,Obfuscation,1
+"Which social engineering attack targets high-profile executives?",Spamming,Smishing,Whaling,Vishing,2

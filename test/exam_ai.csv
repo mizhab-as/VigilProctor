@@ -1,0 +1,11 @@
+text,option_0,option_1,option_2,option_3,correct_option_idx
+"What does AI stand for?",Automated Integration,Artificial Intelligence,Active Information,Algorithmic Intelligence,1
+"Which search algorithm expands nodes based on heuristic evaluation first?",Breadth-First Search,Depth-First Search,Greedy Best-First Search,Dijkstra's Algorithm,2
+"What type of machine learning involves learning from trial and error?",Supervised Learning,Unsupervised Learning,Reinforcement Learning,Semi-supervised Learning,2
+"Which model architecture is primarily used in modern Large Language Models (LLMs)?",Recurrent Neural Network,Convolutional Neural Network,Transformer,Multilayer Perceptron,2
+"What is the term for a neural network's adjustment of weights based on error rates?",Overfitting,Gradient Descent,Backpropagation,Regularization,2
+"Which activation function outputs values in the range [0, 1]?",ReLU,Tanh,Sigmoid,Leaky ReLU,2
+"What is a major risk of overly training a model on specific datasets?",Underfitting,Overfitting,Dimensionality Explosion,Data Drift,1
+"Which AI field deals with understanding spoken language?",Computer Vision,Natural Language Processing,Robotics,Expert Systems,1
+"In AI, what does 'NLP' stand for?",Numerical Linear Programming,Natural Language Processing,Neural Layer Protocols,Network Link Processing,1
+"What test evaluates if a machine can exhibit human-like intelligent behavior?",Turing Test,Rorschach Test,Bellman Test,Markov Test,0

@@ -4,7 +4,7 @@ import base64
 import json
 import asyncio
 from datetime import datetime
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, UploadFile, File
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.keyframe import MotionKeyframeExtractor
 from app.core.inference import ExamGuardInferenceEngine
-from app.database.models import init_db, SessionLocal, ExamSession, SessionAlert, QuestionModel, AuthorizedStudent
+from app.database.models import init_db, SessionLocal, ExamSession, SessionAlert, QuestionModel, AuthorizedStudent, ExamModel
 
 # Initialize directories for image persistence
 DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data"))
@@ -124,18 +124,44 @@ def create_thumbnail(img, max_size=(160, 120)):
 class SessionStartRequest(BaseModel):
     student_id: str
     passcode: str
+    exam_id: str = "default"
 
 class QuestionCreate(BaseModel):
     text: str
     options: list[str]
     correct_option_idx: int = 0
+    exam_id: str = "default"
 
 class ExamSubmitRequest(BaseModel):
     answers: dict[str, int] # e.g. {"1": 3, "2": 1}
 
+class ExamCreate(BaseModel):
+    id: str
+    title: str
+    description: str | None = None
+
+@app.get("/exams")
+def get_all_exams(db: Session = Depends(get_db)):
+    exams = db.query(ExamModel).all()
+    return [{"id": e.id, "title": e.title, "description": e.description} for e in exams]
+
+@app.post("/exams")
+def create_exam(req: ExamCreate, db: Session = Depends(get_db)):
+    existing = db.query(ExamModel).filter(ExamModel.id == req.id.strip()).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Exam with this ID already exists.")
+    new_exam = ExamModel(
+        id=req.id.strip(),
+        title=req.title.strip(),
+        description=req.description.strip() if req.description else None
+    )
+    db.add(new_exam)
+    db.commit()
+    return {"status": "success", "id": new_exam.id, "title": new_exam.title}
+
 @app.get("/questions")
-def get_questions(db: Session = Depends(get_db)):
-    questions = db.query(QuestionModel).all()
+def get_questions(exam_id: str = "default", db: Session = Depends(get_db)):
+    questions = db.query(QuestionModel).filter(QuestionModel.exam_id == exam_id).all()
     result = []
     for q in questions:
         try:
@@ -144,6 +170,7 @@ def get_questions(db: Session = Depends(get_db)):
             options = []
         result.append({
             "id": q.id,
+            "exam_id": q.exam_id,
             "text": q.text,
             "options": options
         })
@@ -153,7 +180,13 @@ def get_questions(db: Session = Depends(get_db)):
 def create_question(req: QuestionCreate, db: Session = Depends(get_db)):
     if len(req.options) != 4:
         raise HTTPException(status_code=400, detail="Exactly 4 options are required")
+    # Verify exam exists
+    exam = db.query(ExamModel).filter(ExamModel.id == req.exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=400, detail=f"Exam '{req.exam_id}' does not exist.")
+
     new_q = QuestionModel(
+        exam_id=req.exam_id,
         text=req.text,
         options_json=json.dumps(req.options),
         correct_option_idx=req.correct_option_idx
@@ -163,6 +196,7 @@ def create_question(req: QuestionCreate, db: Session = Depends(get_db)):
     db.refresh(new_q)
     return {
         "id": new_q.id,
+        "exam_id": new_q.exam_id,
         "text": new_q.text,
         "options": req.options,
         "correct_option_idx": new_q.correct_option_idx
@@ -187,10 +221,19 @@ async def start_session(req: SessionStartRequest, db: Session = Depends(get_db))
             detail="Incorrect passcode. Please check your credentials."
         )
 
+    # Validate exam
+    exam = db.query(ExamModel).filter(ExamModel.id == req.exam_id).first()
+    if not exam:
+        raise HTTPException(
+            status_code=400,
+            detail=f"The selected exam '{req.exam_id}' is not available."
+        )
+
     session_id = str(uuid.uuid4())
     new_session = ExamSession(
         id=session_id,
         student_id=student.student_id,
+        exam_id=req.exam_id,
         start_time=datetime.utcnow(),
         status="active"
     )
@@ -202,6 +245,7 @@ async def start_session(req: SessionStartRequest, db: Session = Depends(get_db))
         "type": "session_status",
         "session_id": session_id,
         "student_id": student.student_id,
+        "exam_id": new_session.exam_id,
         "status": "active",
         "start_time": new_session.start_time.isoformat()
     }
@@ -210,6 +254,7 @@ async def start_session(req: SessionStartRequest, db: Session = Depends(get_db))
     return {
         "session_id": session_id,
         "student_id": req.student_id,
+        "exam_id": req.exam_id,
         "status": "active"
     }
 
@@ -609,11 +654,23 @@ async def upload_students_csv(file: UploadFile = File(...), db: Session = Depend
     return {"status": "success", "message": f"Successfully imported {student_count} students."}
 
 @app.post("/questions/upload")
-async def upload_questions_file(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_questions_file(
+    file: UploadFile = File(...),
+    exam_id: str = Form("default"),
+    db: Session = Depends(get_db)
+):
     import csv
     import io
     content = await file.read()
     filename = file.filename.lower()
+
+    # Verify/Auto-create exam
+    exam_id = exam_id.strip()
+    exam = db.query(ExamModel).filter(ExamModel.id == exam_id).first()
+    if not exam:
+        exam = ExamModel(id=exam_id, title=exam_id.replace("_", " ").title(), description=f"Imported exam cohort '{exam_id}'")
+        db.add(exam)
+        db.commit()
 
     questions_loaded = 0
     if filename.endswith(".json"):
@@ -627,7 +684,7 @@ async def upload_questions_file(file: UploadFile = File(...), db: Session = Depe
                 correct = item.get("correct_option_idx", 0)
                 if not text_q or not isinstance(options, list) or len(options) != 4:
                     continue
-                q = QuestionModel(text=text_q, options_json=json.dumps(options), correct_option_idx=int(correct))
+                q = QuestionModel(exam_id=exam_id, text=text_q, options_json=json.dumps(options), correct_option_idx=int(correct))
                 db.add(q)
                 questions_loaded += 1
         except Exception as e:
@@ -650,14 +707,14 @@ async def upload_questions_file(file: UploadFile = File(...), db: Session = Depe
                     continue
 
                 options = [opt0.strip(), opt1.strip(), opt2.strip(), opt3.strip()]
-                q = QuestionModel(text=text_q.strip(), options_json=json.dumps(options), correct_option_idx=int(correct))
+                q = QuestionModel(exam_id=exam_id, text=text_q.strip(), options_json=json.dumps(options), correct_option_idx=int(correct))
                 db.add(q)
                 questions_loaded += 1
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to parse CSV file: {e}")
 
     db.commit()
-    return {"status": "success", "message": f"Successfully loaded {questions_loaded} questions into database."}
+    return {"status": "success", "message": f"Successfully loaded {questions_loaded} questions into database for exam '{exam_id}'."}
 
 @app.post("/session/{session_id}/submit")
 async def submit_exam_grading(session_id: str, req: ExamSubmitRequest, db: Session = Depends(get_db)):
@@ -682,8 +739,9 @@ async def submit_exam_grading(session_id: str, req: ExamSubmitRequest, db: Sessi
             "student_id": session.student_id
         }
 
-    # Fetch all questions in database
-    db_questions = db.query(QuestionModel).all()
+    # Fetch questions for this session's exam_id
+    exam_id = session.exam_id or "default"
+    db_questions = db.query(QuestionModel).filter(QuestionModel.exam_id == exam_id).all()
     q_map = {q.id: q.correct_option_idx for q in db_questions}
 
     total_questions = len(db_questions)

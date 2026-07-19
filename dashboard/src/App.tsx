@@ -208,11 +208,18 @@ export default function App() {
   const [studentsUploadStatus, setStudentsUploadStatus] = useState("");
 
   // Question management state
-  const [questionsList, setQuestionsList] = useState<{id: number; text: string; options: string[]; correct_option_idx?: number}[]>([]);
+  const [questionsList, setQuestionsList] = useState<{id: number; exam_id: string; text: string; options: string[]; correct_option_idx?: number}[]>([]);
   const [newQuestion, setNewQuestion] = useState({ text: '', options: ['', '', '', ''], correct_option_idx: 0 });
   const [savingQuestion, setSavingQuestion] = useState(false);
   const [uploadingQuestions, setUploadingQuestions] = useState(false);
   const [questionsUploadStatus, setQuestionsUploadStatus] = useState("");
+
+  // Exam management state
+  const [examsList, setExamsList] = useState<{id: string; title: string; description?: string}[]>([]);
+  const [selectedExamId, setSelectedExamId] = useState("default");
+  const [newExam, setNewExam] = useState({ id: "", title: "", description: "" });
+  const [creatingExam, setCreatingExam] = useState(false);
+  const [examCreateStatus, setExamCreateStatus] = useState("");
 
   // Selected benchmark model index (Default to YOLOv5)
   const [benchmarkModelIdx, setBenchmarkModelIdx] = useState(4);
@@ -376,12 +383,23 @@ export default function App() {
     };
   }, [isAuthenticated]);
 
-  // Fetch the full questions list for management view
-  const fetchQuestions = async () => {
+  // Fetch the full questions list for management view, filtered by exam ID
+  const fetchQuestions = async (examId = selectedExamId) => {
     try {
-      const res = await fetch("http://localhost:8000/questions");
+      const res = await fetch(`http://localhost:8000/questions?exam_id=${encodeURIComponent(examId)}`);
       if (res.ok) setQuestionsList(await res.json());
     } catch (err) { console.error("Failed to load questions:", err); }
+  };
+
+  // Fetch available exams list
+  const fetchExams = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/exams");
+      if (res.ok) {
+        const data = await res.json();
+        setExamsList(data);
+      }
+    } catch (err) { console.error("Failed to load exams:", err); }
   };
 
   // Fetch authorized students list
@@ -393,6 +411,19 @@ export default function App() {
       console.error("Failed to load students:", err);
     }
   };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchStudents();
+      fetchExams();
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchQuestions(selectedExamId);
+    }
+  }, [selectedExamId, isAuthenticated]);
 
   // Upload students CSV file
   const handleStudentsCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -433,6 +464,7 @@ export default function App() {
     setQuestionsUploadStatus("");
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("exam_id", selectedExamId);
 
     try {
       const res = await fetch("http://localhost:8000/questions/upload", {
@@ -442,7 +474,7 @@ export default function App() {
       const data = await res.json();
       if (res.ok) {
         setQuestionsUploadStatus(`Success: ${data.message}`);
-        fetchQuestions();
+        fetchQuestions(selectedExamId);
       } else {
         setQuestionsUploadStatus(`Error: ${data.detail || "Questions upload failed."}`);
       }
@@ -466,15 +498,47 @@ export default function App() {
         body: JSON.stringify({ 
           text: newQuestion.text, 
           options: newQuestion.options,
-          correct_option_idx: newQuestion.correct_option_idx
+          correct_option_idx: newQuestion.correct_option_idx,
+          exam_id: selectedExamId
         })
       });
       if (res.ok) {
         setNewQuestion({ text: '', options: ['', '', '', ''], correct_option_idx: 0 });
-        await fetchQuestions();
+        await fetchQuestions(selectedExamId);
       }
     } catch (err) { console.error("Failed to save question:", err); }
     setSavingQuestion(false);
+  };
+
+  // Create a new exam
+  const submitExam = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newExam.id.trim() || !newExam.title.trim()) return;
+    setCreatingExam(true);
+    setExamCreateStatus("");
+    try {
+      const res = await fetch("http://localhost:8000/exams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: newExam.id.trim(),
+          title: newExam.title.trim(),
+          description: newExam.description.trim() || null
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setExamCreateStatus(`Success: Exam '${newExam.title}' created.`);
+        setNewExam({ id: "", title: "", description: "" });
+        await fetchExams();
+      } else {
+        setExamCreateStatus(`Error: ${data.detail || "Failed to create exam."}`);
+      }
+    } catch (err) {
+      setExamCreateStatus("Error: Failed to connect to server.");
+    } finally {
+      setCreatingExam(false);
+    }
   };
 
   // Load report data for specific session
@@ -1201,6 +1265,105 @@ export default function App() {
             <div className="section-title">
               <h2>Exam question bank</h2>
               <span className="meta">{questionsList.length} questions stored</span>
+            </div>
+
+            {/* Exam selection and creation block */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+              {/* Select active exam cohort */}
+              <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
+                <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '14px', letterSpacing: '0.1em' }}>
+                  Select Active Exam Cohort
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <select
+                    value={selectedExamId}
+                    onChange={(e) => setSelectedExamId(e.target.value)}
+                    style={{
+                      width: '100%', background: 'var(--midnight)', border: '1px solid var(--line)',
+                      color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '13px',
+                      padding: '10px 14px', borderRadius: '6px', outline: 'none', cursor: 'pointer'
+                    }}
+                  >
+                    {examsList.map((exam) => (
+                      <option key={exam.id} value={exam.id}>
+                        {exam.title} ({exam.id})
+                      </option>
+                    ))}
+                  </select>
+                  <span style={{ fontSize: '11px', color: 'var(--ink-soft)', fontStyle: 'italic' }}>
+                    Filtering questions list, batch uploads, and manual creations to this exam cohort.
+                  </span>
+                </div>
+              </div>
+
+              {/* Create new exam cohort form */}
+              <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
+                <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--verdigris)', marginBottom: '14px', letterSpacing: '0.1em' }}>
+                  Create New Exam Cohort
+                </h3>
+                <form onSubmit={submitExam} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Exam ID (e.g., exam_ai)"
+                      value={newExam.id}
+                      onChange={(e) => setNewExam((prev) => ({ ...prev, id: e.target.value }))}
+                      style={{
+                        background: 'var(--midnight)', border: '1px solid var(--line)',
+                        color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '12px',
+                        padding: '8px 12px', borderRadius: '4px', outline: 'none'
+                      }}
+                    />
+                    <input
+                      type="text"
+                      required
+                      placeholder="Exam Title (e.g., AI Fundamentals)"
+                      value={newExam.title}
+                      onChange={(e) => setNewExam((prev) => ({ ...prev, title: e.target.value }))}
+                      style={{
+                        background: 'var(--midnight)', border: '1px solid var(--line)',
+                        color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '12px',
+                        padding: '8px 12px', borderRadius: '4px', outline: 'none'
+                      }}
+                    />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Description (Optional)"
+                    value={newExam.description}
+                    onChange={(e) => setNewExam((prev) => ({ ...prev, description: e.target.value }))}
+                    style={{
+                      background: 'var(--midnight)', border: '1px solid var(--line)',
+                      color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '12px',
+                      padding: '8px 12px', borderRadius: '4px', outline: 'none'
+                    }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                    <button
+                      type="submit"
+                      disabled={creatingExam}
+                      style={{
+                        background: 'var(--oxford)', color: 'var(--midnight)',
+                        border: 'none', borderRadius: '4px', padding: '8px 20px',
+                        fontFamily: "'Inter', sans-serif", fontSize: '11px', fontWeight: 600,
+                        cursor: creatingExam ? 'not-allowed' : 'pointer', opacity: creatingExam ? 0.6 : 1
+                      }}
+                    >
+                      {creatingExam ? 'Creating…' : 'Create Exam'}
+                    </button>
+                    {examCreateStatus && (
+                      <span style={{
+                        fontSize: '11px',
+                        fontFamily: "'IBM Plex Mono', monospace",
+                        color: examCreateStatus.startsWith("Success") ? 'var(--verdigris)' : 'var(--seal)'
+                      }}>
+                        {examCreateStatus}
+                      </span>
+                    )}
+                  </div>
+                </form>
+              </div>
             </div>
 
             {/* Create new question form */}

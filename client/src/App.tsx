@@ -57,6 +57,10 @@ const CLASS_LABELS: Record<number, string> = {
 export default function App() {
   const [studentId, setStudentId] = useState("");
   const [passcode, setPasscode] = useState("");
+  const [selectedExamId, setSelectedExamId] = useState("default");
+  const [examsList, setExamsList] = useState<Array<{ id: string; title: string; description?: string }>>([
+    { id: "default", title: "Default Proctoring Exam" }
+  ]);
   const [loginError, setLoginError] = useState("");
   const [sessionStarted, setSessionStarted] = useState(false);
   const [sessionId, setSessionId] = useState("");
@@ -121,6 +125,24 @@ export default function App() {
   useEffect(() => {
     wsRef.current = ws;
   }, [ws]);
+
+  useEffect(() => {
+    const fetchExams = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/exams");
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setExamsList(data);
+            setSelectedExamId(data[0].id);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load exams list:", err);
+      }
+    };
+    fetchExams();
+  }, []);
 
   // Load ONNX Model and Setup MediaPipe on start
   const initializeEngines = async () => {
@@ -579,7 +601,7 @@ export default function App() {
     try {
       // Fetch dynamic questions from backend (fall back to MOCK_QUESTIONS if unavailable)
       try {
-        const qRes = await fetch("http://localhost:8000/questions");
+        const qRes = await fetch(`http://localhost:8000/questions?exam_id=${encodeURIComponent(selectedExamId)}`);
         if (qRes.ok) {
           const qData = await qRes.json();
           if (Array.isArray(qData) && qData.length > 0) {
@@ -595,7 +617,8 @@ export default function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           student_id: studentId.trim(),
-          passcode: passcode.trim()
+          passcode: passcode.trim(),
+          exam_id: selectedExamId
         })
       });
 
@@ -968,6 +991,33 @@ export default function App() {
                     transition: 'border-color .15s ease'
                   }}
                 />
+              </div>
+
+              <div className="field" style={{ marginTop: 14 }}>
+                <label htmlFor="select-exam">Select Exam Cohort</label>
+                <select
+                  id="select-exam"
+                  value={selectedExamId}
+                  onChange={(e) => setSelectedExamId(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    border: '1.5px solid var(--line)',
+                    borderRadius: '6px',
+                    background: 'var(--panel)',
+                    color: 'var(--ink)',
+                    fontSize: '13px',
+                    outline: 'none',
+                    cursor: 'pointer',
+                    transition: 'border-color .15s ease'
+                  }}
+                >
+                  {examsList.map((exam) => (
+                    <option key={exam.id} value={exam.id}>
+                      {exam.title}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {loginError && (
