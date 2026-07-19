@@ -129,7 +129,7 @@ export default function App() {
   useEffect(() => {
     const fetchExams = async () => {
       try {
-        const res = await fetch("http://localhost:8000/exams");
+        const res = await fetch("http://localhost:8000/exams?student_view=true");
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
@@ -970,7 +970,7 @@ export default function App() {
                 />
               </div>
 
-              <div className="field" style={{ marginTop: 14 }}>
+              <div className="field">
                 <label htmlFor="student-passcode">Access Passcode</label>
                 <input
                   id="student-passcode"
@@ -979,21 +979,10 @@ export default function App() {
                   placeholder="Enter passcode"
                   value={passcode}
                   onChange={(e) => setPasscode(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    border: '1.5px solid var(--line)',
-                    borderRadius: '6px',
-                    background: 'var(--panel)',
-                    color: 'var(--ink)',
-                    fontSize: '13px',
-                    outline: 'none',
-                    transition: 'border-color .15s ease'
-                  }}
                 />
               </div>
 
-              <div className="field" style={{ marginTop: 14 }}>
+              <div className="field">
                 <label htmlFor="select-exam">Select Exam Cohort</label>
                 <select
                   id="select-exam"
@@ -1001,13 +990,15 @@ export default function App() {
                   onChange={(e) => setSelectedExamId(e.target.value)}
                   style={{
                     width: '100%',
-                    padding: '10px 12px',
-                    border: '1.5px solid var(--line)',
-                    borderRadius: '6px',
-                    background: 'var(--panel)',
+                    border: 'none',
+                    borderBottom: '1px solid #CFC8B8',
+                    background: 'transparent',
+                    fontFamily: "'IBM Plex Mono', monospace",
+                    fontSize: '14.5px',
                     color: 'var(--ink)',
-                    fontSize: '13px',
+                    padding: '8px 2px 12px 2px',
                     outline: 'none',
+                    borderRadius: 0,
                     cursor: 'pointer',
                     transition: 'border-color .15s ease'
                   }}

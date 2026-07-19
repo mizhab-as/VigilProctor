@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
 DB_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../data"))
@@ -17,6 +17,7 @@ class ExamModel(Base):
     id = Column(String, primary_key=True, index=True)
     title = Column(String, nullable=False)
     description = Column(String, nullable=True)
+    active = Column(Boolean, default=True, nullable=False)
 
 class ExamSession(Base):
     __tablename__ = "exam_sessions"
@@ -138,6 +139,16 @@ def init_db():
                 print("[DATABASE] Altered table exam_sessions to add exam_id column.")
             except Exception as e:
                 print(f"[DATABASE] Alter table exam_id failed on exam_sessions: {e}")
+
+        # Check active in exams
+        try:
+            conn.execute(text("SELECT active FROM exams LIMIT 1"))
+        except Exception:
+            try:
+                conn.execute(text("ALTER TABLE exams ADD COLUMN active BOOLEAN DEFAULT 1"))
+                print("[DATABASE] Altered table exams to add active column.")
+            except Exception as e:
+                print(f"[DATABASE] Alter table active failed on exams: {e}")
 
     # Initialize exams and questions if empty
     import json

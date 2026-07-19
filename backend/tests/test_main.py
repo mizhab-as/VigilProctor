@@ -98,9 +98,33 @@ def test_create_and_get_exams():
     # Get exams
     resp = client.get("/exams")
     assert resp.status_code == 200
-    ids = [e["id"] for e in resp.json()]
+    exams = resp.json()
+    ids = [e["id"] for e in exams]
     assert "cyber_exam" in ids
     assert "default" in ids
+
+    # Toggle active
+    resp_toggle = client.post("/exams/cyber_exam/toggle-active")
+    assert resp_toggle.status_code == 200
+    assert resp_toggle.json()["active"] is False
+
+    # Get student view (should filter out cyber_exam since active is False)
+    resp_student = client.get("/exams?student_view=true")
+    assert resp_student.status_code == 200
+    student_ids = [e["id"] for e in resp_student.json()]
+    assert "cyber_exam" not in student_ids
+    assert "default" in student_ids
+
+    # Toggle active back to True
+    resp_toggle2 = client.post("/exams/cyber_exam/toggle-active")
+    assert resp_toggle2.status_code == 200
+    assert resp_toggle2.json()["active"] is True
+
+    # Get student view again
+    resp_student2 = client.get("/exams?student_view=true")
+    assert resp_student2.status_code == 200
+    student_ids2 = [e["id"] for e in resp_student2.json()]
+    assert "cyber_exam" in student_ids2
 
 def test_questions_upload_by_exam():
     csv_data = "text,option_0,option_1,option_2,option_3,correct_option_idx\nWhat is a firewall?,software,hardware,both,neither,2\n"
@@ -149,3 +173,10 @@ def test_exam_grading_submission():
     assert rep_data["status"] == "completed"
     assert rep_data["score"] == "1/2"
     assert rep_data["percentage"] == 50.0
+
+    # Verify exam stats are computed correctly
+    stats_resp = client.get("/exams/default/stats")
+    assert stats_resp.status_code == 200
+    stats_data = stats_resp.json()
+    assert stats_data["total_completed"] >= 1
+    assert stats_data["top_score"] == "50.0%"

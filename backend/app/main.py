@@ -141,9 +141,12 @@ class ExamCreate(BaseModel):
     description: str | None = None
 
 @app.get("/exams")
-def get_all_exams(db: Session = Depends(get_db)):
-    exams = db.query(ExamModel).all()
-    return [{"id": e.id, "title": e.title, "description": e.description} for e in exams]
+def get_all_exams(student_view: bool = False, db: Session = Depends(get_db)):
+    query = db.query(ExamModel)
+    if student_view:
+        query = query.filter(ExamModel.active == True)
+    exams = query.all()
+    return [{"id": e.id, "title": e.title, "description": e.description, "active": e.active} for e in exams]
 
 @app.post("/exams")
 def create_exam(req: ExamCreate, db: Session = Depends(get_db)):
@@ -153,11 +156,60 @@ def create_exam(req: ExamCreate, db: Session = Depends(get_db)):
     new_exam = ExamModel(
         id=req.id.strip(),
         title=req.title.strip(),
-        description=req.description.strip() if req.description else None
+        description=req.description.strip() if req.description else None,
+        active=True
     )
     db.add(new_exam)
     db.commit()
     return {"status": "success", "id": new_exam.id, "title": new_exam.title}
+
+@app.post("/exams/{exam_id}/toggle-active")
+def toggle_exam_active(exam_id: str, db: Session = Depends(get_db)):
+    exam = db.query(ExamModel).filter(ExamModel.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found.")
+    exam.active = not exam.active
+    db.commit()
+    db.refresh(exam)
+    return {"status": "success", "id": exam.id, "active": exam.active}
+
+@app.get("/exams/{exam_id}/stats")
+def get_exam_stats(exam_id: str, db: Session = Depends(get_db)):
+    sessions = db.query(ExamSession).filter(
+        ExamSession.exam_id == exam_id,
+        ExamSession.status == "completed"
+    ).all()
+    
+    total = len(sessions)
+    if total == 0:
+        return {
+            "total_completed": 0,
+            "top_score": "N/A",
+            "average_percentage": 0.0,
+            "pass_rate": 0.0
+        }
+    
+    top_score = 0.0
+    total_percentage = 0.0
+    passed = 0
+    
+    for s in sessions:
+        p = s.percentage or 0.0
+        if p > top_score:
+            top_score = p
+        total_percentage += p
+        if p >= 50.0:
+            passed += 1
+            
+    avg_p = round(total_percentage / total, 1)
+    pass_r = round((passed / total) * 100, 1)
+    
+    return {
+        "total_completed": total,
+        "top_score": f"{top_score}%",
+        "average_percentage": avg_p,
+        "pass_rate": pass_r
+    }
 
 @app.get("/questions")
 def get_questions(exam_id: str = "default", db: Session = Depends(get_db)):
@@ -664,38 +716,70 @@ async def upload_questions_file(
     content = await file.read()
     filename = file.filename.lower()
 
-    # Verify/Auto-create exam
-    exam_id = exam_id.strip()
-    exam = db.query(ExamModel).filter(ExamModel.id == exam_id).first()
-    if not exam:
-        exam = ExamModel(id=exam_id, title=exam_id.replace("_", " ").title(), description=f"Imported exam cohort '{exam_id}'")
-        db.add(exam)
-        db.commit()
+    # Determine default ID/Title from form parameter or filename base
+    form_id = exam_id.strip()
+    file_base = filename.split(".")[0].strip()
+    
+    if form_id == "default" and file_base:
+        default_exam_id = file_base
+    else:
+        default_exam_id = form_id
+        
+    default_exam_title = default_exam_id.replace("_", " ").title()
 
     questions_loaded = 0
+    parsed_questions = []
+
+    target_exam_id = default_exam_id
+    target_exam_title = default_exam_title
+
     if filename.endswith(".json"):
         try:
             data = json.loads(content.decode("utf-8"))
             if not isinstance(data, list):
                 raise ValueError("JSON file must contain a list of questions.")
+            
+            # Look at first item to see if it overrides exam metadata
+            if len(data) > 0:
+                first_item = data[0]
+                if "exam_id" in first_item:
+                    target_exam_id = str(first_item["exam_id"]).strip()
+                if "exam_name" in first_item:
+                    target_exam_title = str(first_item["exam_name"]).strip()
+                elif "exam_title" in first_item:
+                    target_exam_title = str(first_item["exam_title"]).strip()
+
             for item in data:
                 text_q = item.get("text")
                 options = item.get("options")
                 correct = item.get("correct_option_idx", 0)
                 if not text_q or not isinstance(options, list) or len(options) != 4:
                     continue
-                q = QuestionModel(exam_id=exam_id, text=text_q, options_json=json.dumps(options), correct_option_idx=int(correct))
-                db.add(q)
-                questions_loaded += 1
+                parsed_questions.append({
+                    "text": text_q,
+                    "options": options,
+                    "correct": int(correct)
+                })
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to parse JSON file: {e}")
     else:
         # Default to CSV parsing
         try:
             csv_text = content.decode("utf-8")
-            # Expected headers: text, option_0, option_1, option_2, option_3, correct_option_idx
             reader = csv.DictReader(io.StringIO(csv_text))
-            for row in reader:
+            rows = list(reader)
+            
+            # Look at first row to see if it overrides exam metadata
+            if len(rows) > 0:
+                first_row = rows[0]
+                if first_row.get("exam_id"):
+                    target_exam_id = str(first_row.get("exam_id")).strip()
+                if first_row.get("exam_name"):
+                    target_exam_title = str(first_row.get("exam_name")).strip()
+                elif first_row.get("exam_title"):
+                    target_exam_title = str(first_row.get("exam_title")).strip()
+
+            for row in rows:
                 text_q = row.get("text")
                 opt0 = row.get("option_0") or row.get("option0")
                 opt1 = row.get("option_1") or row.get("option1")
@@ -707,14 +791,46 @@ async def upload_questions_file(
                     continue
 
                 options = [opt0.strip(), opt1.strip(), opt2.strip(), opt3.strip()]
-                q = QuestionModel(exam_id=exam_id, text=text_q.strip(), options_json=json.dumps(options), correct_option_idx=int(correct))
-                db.add(q)
-                questions_loaded += 1
+                parsed_questions.append({
+                    "text": text_q.strip(),
+                    "options": options,
+                    "correct": int(correct)
+                })
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to parse CSV file: {e}")
 
+    if not target_exam_id:
+        target_exam_id = "default"
+    if not target_exam_title:
+        target_exam_title = target_exam_id.replace("_", " ").title()
+
+    # Create/Update ExamModel and set it to active
+    exam = db.query(ExamModel).filter(ExamModel.id == target_exam_id).first()
+    if not exam:
+        exam = ExamModel(id=target_exam_id, title=target_exam_title, description=f"Imported exam cohort '{target_exam_id}'", active=True)
+        db.add(exam)
+    else:
+        exam.title = target_exam_title
+        exam.active = True
     db.commit()
-    return {"status": "success", "message": f"Successfully loaded {questions_loaded} questions into database for exam '{exam_id}'."}
+
+    # WIPE existing questions for this specific exam cohort
+    db.query(QuestionModel).filter(QuestionModel.exam_id == target_exam_id).delete()
+    db.commit()
+
+    # Save all parsed questions
+    for pq in parsed_questions:
+        q = QuestionModel(
+            exam_id=target_exam_id,
+            text=pq["text"],
+            options_json=json.dumps(pq["options"]),
+            correct_option_idx=pq["correct"]
+        )
+        db.add(q)
+        questions_loaded += 1
+    db.commit()
+
+    return {"status": "success", "message": f"Successfully loaded {questions_loaded} questions into database and cleared previous questions for exam '{target_exam_title}' ({target_exam_id})."}
 
 @app.post("/session/{session_id}/submit")
 async def submit_exam_grading(session_id: str, req: ExamSubmitRequest, db: Session = Depends(get_db)):
