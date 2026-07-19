@@ -92,6 +92,7 @@ export default function App() {
   const consecutiveGazeRef = useRef(0);
   const consecutiveMissingRef = useRef(0);
   const consecutiveSpeechRef = useRef(0);
+  const consecutiveMultipleRef = useRef(0);
 
   // Frame differencing tracking states in refs
   const prevFrameGrayRef = useRef<Uint8Array | null>(null);
@@ -304,18 +305,49 @@ export default function App() {
     }
 
     // B. Check for Multiple Persons (Class 3)
-    if (results.multiFaceLandmarks.length > 1) {
-      const screenshot = webcamRef.current?.getScreenshot() || null;
-      socket.send(
-        JSON.stringify({
-          type: "anomaly",
-          anomaly_type: "Multiple Persons Detected",
-          confidence: 0.95,
-          frame: screenshot
-        })
-      );
-      setWarnings((prev) => ["Security Alert: Multiple persons detected in camera frame!", ...prev.slice(0, 4)]);
+    let distinctFacesCount = 0;
+    if (results.multiFaceLandmarks) {
+      const distinctFaces: any[] = [];
+      for (const face of results.multiFaceLandmarks) {
+        const nose = face[4];
+        if (!nose) continue;
+        let isDuplicate = false;
+        for (const existing of distinctFaces) {
+          const dx = nose.x - existing.x;
+          const dy = nose.y - existing.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          // If the detected face is within 15% distance, it's the same face
+          if (dist < 0.15) {
+            isDuplicate = true;
+            break;
+          }
+        }
+        if (!isDuplicate) {
+          distinctFaces.push(nose);
+        }
+      }
+      distinctFacesCount = distinctFaces.length;
+    }
+
+    if (distinctFacesCount > 1) {
+      consecutiveMultipleRef.current += 1;
+      if (consecutiveMultipleRef.current >= 2) { // Require 2 consecutive frames (~700ms)
+        console.warn("[PROCTOR] Multiple distinct faces detected in frame!");
+        const screenshot = webcamRef.current?.getScreenshot() || null;
+        socket.send(
+          JSON.stringify({
+            type: "anomaly",
+            anomaly_type: "Multiple Persons Detected",
+            confidence: 0.95,
+            frame: screenshot
+          })
+        );
+        setWarnings((prev) => ["Security Alert: Multiple persons detected in camera frame!", ...prev.slice(0, 4)]);
+        consecutiveMultipleRef.current = 0; // Reset
+      }
       return;
+    } else {
+      consecutiveMultipleRef.current = 0;
     }
 
     const landmarks = results.multiFaceLandmarks[0];

@@ -2,6 +2,20 @@ import os
 import yaml
 import cv2
 import numpy as np
+
+# Monkeypatch NumPy 2.0+ to prevent AttributeError on np.trapz
+if not hasattr(np, 'trapz') and hasattr(np, 'trapezoid'):
+    np.trapz = np.trapezoid
+
+import torch
+
+# Monkeypatch torch.load to force weights_only=False under PyTorch 2.6+
+_original_load = torch.load
+def _patched_load(*args, **kwargs):
+    kwargs['weights_only'] = False
+    return _original_load(*args, **kwargs)
+torch.load = _patched_load
+
 from ultralytics import YOLO
 
 def generate_mock_dataset(base_dir="dataset"):
