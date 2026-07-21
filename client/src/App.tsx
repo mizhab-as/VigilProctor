@@ -1015,186 +1015,275 @@ export default function App() {
 
   if (!sessionStarted && portalView === "portal") {
     return (
-      <div style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
+      <div className="portal-landing-container" style={{
         minHeight: "100vh",
-        background: "radial-gradient(circle at center, #1b263b 0%, #0d131f 100%)",
-        color: "#f8f9fa",
-        fontFamily: "'Inter', sans-serif",
-        padding: "40px 20px",
-        textAlign: "center"
+        position: "relative",
+        overflowX: "hidden",
+        background: "linear-gradient(155deg, #1E3A5F 0%, #152C48 100%)",
+        color: "#1C2430",
+        fontFamily: "'Inter', sans-serif"
       }}>
-        {/* Animated Wax Seal Logo Mark */}
+        {/* Background Grids */}
         <div style={{
-          marginBottom: "24px",
+          position: "absolute", inset: 0,
+          backgroundImage: "linear-gradient(rgba(246,243,236,0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(246,243,236,0.045) 1px, transparent 1px)",
+          backgroundSize: "56px 56px",
+          pointerEvents: "none",
+          zIndex: 1
+        }}></div>
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "radial-gradient(ellipse 900px 700px at 50% 30%, rgba(0,0,0,0), rgba(9,17,29,0.35) 100%)",
+          pointerEvents: "none",
+          zIndex: 1
+        }}></div>
+
+        {/* Hero Eye Graphic */}
+        <svg style={{
+          position: "absolute",
+          top: "170px", left: "50%",
+          transform: "translateX(-50%)",
+          width: "880px", height: "880px",
+          pointerEvents: "none",
+          zIndex: 1
+        }} viewBox="0 0 880 880" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="440" cy="440" r="330" stroke="#C7D4E3" strokeWidth="1" opacity="0.16"/>
+          <circle cx="440" cy="440" r="270" stroke="#C7D4E3" strokeWidth="1" opacity="0.1"/>
+          <g stroke="#C7D4E3" strokeWidth="1.2" opacity="0.18">
+            <line x1="440" y1="110" x2="440" y2="150"/>
+            <line x1="440" y1="730" x2="440" y2="770"/>
+            <line x1="110" y1="440" x2="150" y2="440"/>
+            <line x1="730" y1="440" x2="770" y2="440"/>
+            <line x1="205" y1="205" x2="235" y2="235"/>
+            <line x1="645" y1="645" x2="675" y2="675"/>
+            <line x1="205" y1="675" x2="235" y2="645"/>
+            <line x1="645" y1="235" x2="675" y2="205"/>
+          </g>
+          <path d="M230 440 Q440 320 650 440 Q440 560 230 440 Z" stroke="#D9B65B" strokeWidth="1.8" fill="none" opacity="0.6"/>
+          <circle cx="440" cy="440" r="70" stroke="#D9B65B" strokeWidth="1.8" fill="none" opacity="0.6"/>
+          <circle cx="440" cy="440" r="20" fill="#D9B65B" opacity="0.55"/>
+          <g stroke="#D9B65B" strokeWidth="1.2" opacity="0.35">
+            <line x1="320" y1="390" x2="300" y2="368"/>
+            <line x1="560" y1="390" x2="580" y2="368"/>
+            <line x1="270" y1="425" x2="248" y2="415"/>
+            <line x1="610" y1="425" x2="632" y2="415"/>
+          </g>
+        </svg>
+
+        {/* Corners */}
+        <div className="corner-decor tl" style={{ position: "absolute", top: "32px", left: "32px", fontFamily: "'IBM Plex Mono', monospace", fontSize: "10px", letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(199,212,227,0.55)", zIndex: 3 }}>
+          <span>Ref. EG-1.1</span>
+          <span style={{ color: "rgba(199,212,227,0.3)", display: "block" }}>Sealed Integrity</span>
+        </div>
+        <div className="corner-decor tr" style={{ position: "absolute", top: "32px", right: "32px", textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontSize: "10px", letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(199,212,227,0.55)", zIndex: 3 }}>
+          <span>Examination Board</span>
+          <span style={{ color: "rgba(199,212,227,0.3)", display: "block" }}>Access Portal</span>
+        </div>
+
+        {/* Wrapper */}
+        <div style={{
           position: "relative",
-          animation: "pulse 3s infinite ease-in-out"
-        }}>
-          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: 80, height: 80 }}>
-            <path d="M20 2 L23.5 6.5 L29 5 L29.5 10.7 L35 12.5 L32 17.5 L35 22.5 L29.5 24.3 L29 30 L23.5 28.5 L20 33 L16.5 28.5 L11 30 L10.5 24.3 L5 22.5 L8 17.5 L5 12.5 L10.5 10.7 L11 5 L16.5 6.5 Z"
-              stroke="#D9B65B" strokeWidth="1.6" fill="#1b263b" />
-            <text x="20" y="22.5" textAnchor="middle" fontFamily="Newsreader, serif" fontSize="13" fontWeight="600" fill="#D9B65B">EG</text>
-          </svg>
-        </div>
-
-        {/* Title */}
-        <h1 style={{
-          fontFamily: "'Newsreader', serif",
-          fontSize: "44px",
-          fontWeight: 600,
-          letterSpacing: "-0.01em",
-          color: "#ffffff",
-          margin: "0 0 8px 0"
-        }}>
-          EXAMGUARD AI
-        </h1>
-        
-        <p style={{
-          fontFamily: "'IBM Plex Mono', monospace",
-          fontSize: "12px",
-          color: "#D9B65B",
-          textTransform: "uppercase",
-          letterSpacing: "0.15em",
-          margin: "0 0 48px 0",
-          opacity: 0.9
-        }}>
-          Examination Integrity & Proctoring Suite
-        </p>
-
-        {/* Unified Cards Grid */}
-        <div style={{
+          zIndex: 2,
+          maxWidth: "900px",
+          margin: "0 auto",
+          padding: "150px 24px 100px",
           display: "flex",
-          gap: "28px",
-          flexWrap: "wrap",
-          justifyContent: "center",
-          maxWidth: "840px",
-          width: "100%"
+          flexDirection: "column",
+          alignItems: "center",
+          textAlign: "center"
         }}>
-          {/* Student Card */}
-          <div 
-            onClick={() => setPortalView("student")}
-            className="portal-card"
-            style={{
-              flex: "1 1 340px",
-              maxWidth: "380px",
-              background: "rgba(23, 31, 42, 0.6)",
-              border: "1px solid rgba(217, 182, 91, 0.25)",
-              borderRadius: "12px",
-              padding: "40px 32px",
-              textAlign: "left",
-              cursor: "pointer",
-              transition: "all 0.3s ease",
-              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
-              backdropFilter: "blur(8px)"
-            }}
-          >
-            <div style={{ fontSize: "36px", marginBottom: "16px" }}>🎓</div>
-            <h3 style={{
-              fontFamily: "'Newsreader', serif",
-              fontSize: "24px",
-              fontWeight: 600,
-              color: "#ffffff",
-              margin: "0 0 10px 0"
-            }}>
-              Student Portal
-            </h3>
-            <p style={{
-              fontSize: "13.5px",
-              lineHeight: "1.6",
-              color: "#a0aec0",
-              margin: "0 0 28px 0"
-            }}>
-              Access your schedule, verify your credentials, and start your monitored examination session securely.
-            </p>
-            <button style={{
-              background: "#D9B65B",
-              color: "#0d131f",
-              border: "none",
-              borderRadius: "6px",
-              padding: "12px 20px",
-              fontSize: "13px",
-              fontWeight: 600,
-              fontFamily: "'Inter', sans-serif",
-              cursor: "pointer",
-              width: "100%",
-              transition: "background 0.2s"
-            }}>
-              Enter Exam Hall →
-            </button>
+          {/* Rotating Seal Wrapper */}
+          <div className="seal-wrap" style={{ position: "relative", width: "100px", height: "100px", marginBottom: "32px" }}>
+            <div className="seal-ring" style={{ position: "absolute", inset: "-16px", borderRadius: "50%", border: "1px solid rgba(217,182,91,0.35)", animation: "spin 20s linear infinite" }}></div>
+            <svg style={{ width: "100px", height: "100px", position: "relative" }} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M20 2 L23.5 6.5 L29 5 L29.5 10.7 L35 12.5 L32 17.5 L35 22.5 L29.5 24.3 L29 30 L23.5 28.5 L20 33 L16.5 28.5 L11 30 L10.5 24.3 L5 22.5 L8 17.5 L5 12.5 L10.5 10.7 L11 5 L16.5 6.5 Z"
+                stroke="#D9B65B" strokeWidth="1.2" fill="rgba(255,255,255,0.03)"/>
+              <text x="20" y="23" textAnchor="middle" fontFamily="Newsreader, serif" fontSize="12" fontWeight="600" fill="#F6F3EC">EG</text>
+            </svg>
           </div>
 
-          {/* Invigilator Card */}
-          <div 
-            onClick={() => setPortalView("invigilator")}
-            className="portal-card"
-            style={{
-              flex: "1 1 340px",
-              maxWidth: "380px",
-              background: "rgba(23, 31, 42, 0.6)",
-              border: "1px solid rgba(110, 147, 190, 0.25)",
-              borderRadius: "12px",
-              padding: "40px 32px",
-              textAlign: "left",
-              cursor: "pointer",
-              transition: "all 0.3s ease",
-              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
-              backdropFilter: "blur(8px)"
-            }}
-          >
-            <div style={{ fontSize: "36px", marginBottom: "16px" }}>🛡️</div>
-            <h3 style={{
-              fontFamily: "'Newsreader', serif",
-              fontSize: "24px",
-              fontWeight: 600,
-              color: "#ffffff",
-              margin: "0 0 10px 0"
-            }}>
-              Invigilator Console
-            </h3>
-            <p style={{
-              fontSize: "13.5px",
-              lineHeight: "1.6",
-              color: "#a0aec0",
-              margin: "0 0 28px 0"
-            }}>
-              Supervise active sessions, review AI-flagged violations, manage cohorts, and inspect reports.
-            </p>
-            <button style={{
-              background: "#6E93BE",
-              color: "#0d131f",
-              border: "none",
-              borderRadius: "6px",
-              padding: "12px 20px",
-              fontSize: "13px",
-              fontWeight: 600,
-              fontFamily: "'Inter', sans-serif",
-              cursor: "pointer",
-              width: "100%",
-              transition: "background 0.2s"
-            }}>
-              Access Console →
-            </button>
+          <h1 style={{
+            fontFamily: "'Newsreader', serif",
+            fontWeight: 600,
+            fontSize: "52px",
+            letterSpacing: "0.015em",
+            margin: "0 0 14px 0",
+            color: "#F6F3EC"
+          }}>ExamGuard AI</h1>
+          <p style={{
+            fontFamily: "'IBM Plex Mono', monospace",
+            fontSize: "11.5px",
+            letterSpacing: "0.24em",
+            textTransform: "uppercase",
+            color: "#D9B65B",
+            margin: "0 0 30px 0"
+          }}>Examination Integrity &amp; Proctoring Suite</p>
+          
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "70px" }}>
+            <span style={{ width: "44px", height: "1px", background: "rgba(199,212,227,0.3)" }}></span>
+            <span style={{ width: "4px", height: "4px", borderRadius: "50%", background: "#D9B65B" }}></span>
+            <span style={{ width: "44px", height: "1px", background: "rgba(199,212,227,0.3)" }}></span>
+          </div>
+
+          {/* Cards Grid */}
+          <div className="paths-grid" style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "22px",
+            width: "100%"
+          }}>
+            {/* Student Portal Card */}
+            <div 
+              onClick={() => setPortalView("student")}
+              className="path-card student-card-hover"
+              style={{
+                position: "relative",
+                background: "#FFFDF9",
+                border: "1px solid #E4DFD2",
+                borderRadius: "8px",
+                padding: "36px 32px",
+                textAlign: "left",
+                display: "flex",
+                flexDirection: "column",
+                boxShadow: "0 24px 50px -20px rgba(6,12,22,0.55)",
+                cursor: "pointer",
+                transition: "all .18s ease"
+              }}
+            >
+              <div style={{
+                width: "44px", height: "44px",
+                borderRadius: "50%",
+                border: "1.4px solid #B8912F",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                marginBottom: "22px"
+              }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 5 L21 9.5 L12 14 L3 9.5 Z" stroke="#B8912F" strokeWidth="1.4" strokeLinejoin="round"/>
+                  <path d="M7 11.5 V16.5 C7 17.8 9.2 19 12 19 C14.8 19 17 17.8 17 16.5 V11.5" stroke="#B8912F" strokeWidth="1.4"/>
+                  <path d="M21 9.5 V14.5" stroke="#B8912F" strokeWidth="1.4" strokeLinecap="round"/>
+                </svg>
+              </div>
+              <h2 style={{ fontFamily: "'Newsreader', serif", fontWeight: 600, fontSize: "23px", margin: "0 0 10px 0", color: "#1C2430" }}>Student Portal</h2>
+              <p style={{ fontSize: "13.5px", lineHeight: "1.6", color: "#5B6472", margin: "0 0 28px 0", flex: 1 }}>Verify your registration, confirm sensor access, and enter your monitored exam session.</p>
+              <button 
+                className="path-btn gold" 
+                style={{
+                  display: "inline-flex", alignSelf: "stretch", alignItems: "center", justifyContent: "center", gap: "8px",
+                  width: "100%", padding: "14px 20px", borderRadius: "8px", border: "none",
+                  fontFamily: "'Inter', sans-serif", fontSize: "13.5px", fontWeight: 600,
+                  cursor: "pointer", background: "#B8912F", color: "#3A2E0F",
+                  transition: "all .15s ease"
+                }}
+              >
+                Enter exam hall →
+              </button>
+            </div>
+
+            {/* Invigilator Console Card */}
+            <div 
+              onClick={() => setPortalView("invigilator")}
+              className="path-card invigilator-card-hover"
+              style={{
+                position: "relative",
+                background: "#FFFDF9",
+                border: "1px solid #E4DFD2",
+                borderRadius: "8px",
+                padding: "36px 32px",
+                textAlign: "left",
+                display: "flex",
+                flexDirection: "column",
+                boxShadow: "0 24px 50px -20px rgba(6,12,22,0.55)",
+                cursor: "pointer",
+                transition: "all .18s ease"
+              }}
+            >
+              <div style={{
+                width: "44px", height: "44px",
+                borderRadius: "50%",
+                border: "1.4px solid #1E3A5F",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                marginBottom: "22px"
+              }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 3 L20 6.5 V11 C20 16 16.5 19.8 12 21 C7.5 19.8 4 16 4 11 V6.5 Z" stroke="#1E3A5F" strokeWidth="1.4" strokeLinejoin="round"/>
+                  <path d="M9 11.3 L11.2 13.5 L15.3 9" stroke="#1E3A5F" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+              <h2 style={{ fontFamily: "'Newsreader', serif", fontWeight: 600, fontSize: "23px", margin: "0 0 10px 0", color: "#1C2430" }}>Invigilator Console</h2>
+              <p style={{ fontSize: "13.5px", lineHeight: "1.6", color: "#5B6472", margin: "0 0 28px 0", flex: 1 }}>Supervise active cohorts, review flagged incidents, and confirm violations for the record.</p>
+              <button 
+                className="path-btn oxford" 
+                style={{
+                  display: "inline-flex", alignSelf: "stretch", alignItems: "center", justifyContent: "center", gap: "8px",
+                  width: "100%", padding: "14px 20px", borderRadius: "8px", border: "none",
+                  fontFamily: "'Inter', sans-serif", fontSize: "13.5px", fontWeight: 600,
+                  cursor: "pointer", background: "#1E3A5F", color: "#F6F3EC",
+                  transition: "all .15s ease"
+                }}
+              >
+                Access console →
+              </button>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div style={{
+            marginTop: "64px",
+            display: "flex", alignItems: "center", gap: "10px",
+            fontFamily: "'IBM Plex Mono', monospace",
+            fontSize: "10px", letterSpacing: "0.14em", textTransform: "uppercase",
+            color: "rgba(199,212,227,0.45)"
+          }}>
+            <span>ExamGuard AI</span>
+            <span style={{ width: "3px", height: "3px", borderRadius: "50%", background: "rgba(199,212,227,0.3)" }}></span>
+            <span>Ledgers of Academic Integrity</span>
           </div>
         </div>
 
-        {/* Global style injection for card animations */}
+        {/* Global style injection for hover triggers */}
         <style dangerouslySetInnerHTML={{ __html: `
-          @keyframes pulse {
-            0% { transform: translateY(0px); }
-            50% { transform: translateY(-4px); }
-            100% { transform: translateY(0px); }
+          @keyframes spin {
+            100% { transform: rotate(360deg); }
           }
-          .portal-card:hover {
-            transform: translateY(-6px);
-            box-shadow: 0 12px 40px rgba(217, 182, 91, 0.15) !important;
-            border-color: rgba(217, 182, 91, 0.5) !important;
+          .student-card-hover:hover {
+            border-color: #B8912F !important;
+            transform: translateY(-3px);
+            box-shadow: 0 30px 60px -18px rgba(6,12,22,0.6) !important;
           }
-          .portal-card:last-child:hover {
-            box-shadow: 0 12px 40px rgba(110, 147, 190, 0.15) !important;
-            border-color: rgba(110, 147, 190, 0.5) !important;
+          .invigilator-card-hover:hover {
+            border-color: #1E3A5F !important;
+            transform: translateY(-3px);
+            box-shadow: 0 30px 60px -18px rgba(6,12,22,0.6) !important;
+          }
+          .student-card-hover::before {
+            content: "";
+            position: absolute; top: 0; left: 24px; right: 24px; height: 2px;
+            background: #B8912F;
+            border-radius: 0 0 2px 2px;
+            opacity: 0;
+            transition: opacity .18s ease;
+          }
+          .student-card-hover:hover::before {
+            opacity: 1;
+          }
+          .invigilator-card-hover::before {
+            content: "";
+            position: absolute; top: 0; left: 24px; right: 24px; height: 2px;
+            background: #1E3A5F;
+            border-radius: 0 0 2px 2px;
+            opacity: 0;
+            transition: opacity .18s ease;
+          }
+          .invigilator-card-hover:hover::before {
+            opacity: 1;
+          }
+          .path-btn:hover {
+            filter: brightness(0.94);
+            transform: translateX(1px);
+          }
+          @media (max-width: 700px) {
+            .paths-grid { grid-template-columns: 1fr !important; }
+            .corner-decor { display: none !important; }
           }
         `}} />
       </div>
