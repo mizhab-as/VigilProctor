@@ -3,29 +3,36 @@ from datetime import datetime
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
-DB_PATH = os.environ.get("DB_PATH")
-db_fallback_needed = False
+DATABASE_URL = os.environ.get("DATABASE_URL")
+engine = None
 
-if DB_PATH:
-    try:
-        # Ensure parent directory of DB_PATH exists
-        parent_dir = os.path.dirname(DB_PATH)
-        if parent_dir:
-            os.makedirs(parent_dir, exist_ok=True)
-        DATABASE_URL = f"sqlite:///{DB_PATH}"
-    except Exception as e:
-        print(f"[DATABASE] Warning: Failed to initialize custom DB_PATH ({e}). Falling back to local data folder.")
-        db_fallback_needed = True
+if DATABASE_URL:
+    # SQLAlchemy requires 'postgresql://' instead of 'postgres://' (which is returned by some providers)
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    engine = create_engine(DATABASE_URL)
 else:
-    db_fallback_needed = True
-
-if db_fallback_needed:
-    DB_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data"))
-    os.makedirs(DB_DIR, exist_ok=True)
-    DATABASE_URL = f"sqlite:///{os.path.join(DB_DIR, 'examguard.db')}"
-
+    DB_PATH = os.environ.get("DB_PATH")
+    db_fallback_needed = False
+    
+    if DB_PATH:
+        try:
+            parent_dir = os.path.dirname(DB_PATH)
+            if parent_dir:
+                os.makedirs(parent_dir, exist_ok=True)
+            DATABASE_URL = f"sqlite:///{DB_PATH}"
+        except Exception as e:
+            print(f"[DATABASE] Warning: Failed to initialize custom DB_PATH ({e}). Falling back to local data folder.")
+            db_fallback_needed = True
+    else:
+        db_fallback_needed = True
+        
+    if db_fallback_needed:
+        DB_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data"))
+        os.makedirs(DB_DIR, exist_ok=True)
+        DATABASE_URL = f"sqlite:///{os.path.join(DB_DIR, 'examguard.db')}"
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 Base = declarative_base()
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 class ExamModel(Base):
