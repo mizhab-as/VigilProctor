@@ -133,9 +133,11 @@
 
 /* ---------- MAIN LAYOUT ---------- */
 .admin-dashboard-root main {
+  display: block !important;
   max-width: 1180px;
   margin: 0 auto;
   padding: 40px;
+  overflow: visible !important;
 }
 
 .section-title {
