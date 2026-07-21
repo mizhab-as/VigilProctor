@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import Webcam from "react-webcam";
 import * as ort from "onnxruntime-web";
 
+const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
+const WS_BASE = (import.meta.env.VITE_WS_URL || API_BASE.replace(/^http/, "ws")).replace(/\/$/, "");
+
 interface Question {
   id: number;
   text: string;
@@ -137,7 +140,7 @@ export default function App() {
   useEffect(() => {
     const fetchExams = async () => {
       try {
-        const res = await fetch("http://localhost:8000/exams?student_view=true");
+        const res = await fetch(`${API_BASE}/exams?student_view=true`);
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
@@ -288,7 +291,7 @@ export default function App() {
 
     try {
       console.log(`[RECORDER] Uploading evidence clip for alert ${alertId} (Session: ${targetSessionId})...`);
-      const response = await fetch(`http://localhost:8000/session/${targetSessionId}/alert/${alertId}/video`, {
+      const response = await fetch(`${API_BASE}/session/${targetSessionId}/alert/${alertId}/video`, {
         method: "POST",
         body: formData
       });
@@ -613,7 +616,7 @@ export default function App() {
     setAuthenticating(true);
 
     try {
-      const res = await fetch("http://localhost:8000/students/verify", {
+      const res = await fetch(`${API_BASE}/students/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -633,7 +636,7 @@ export default function App() {
 
       // Fetch active exams list
       try {
-        const examsRes = await fetch("http://localhost:8000/exams?student_view=true");
+        const examsRes = await fetch(`${API_BASE}/exams?student_view=true`);
         if (examsRes.ok) {
           const eData = await examsRes.json();
           if (Array.isArray(eData) && eData.length > 0) {
@@ -670,7 +673,7 @@ export default function App() {
     try {
       // Fetch dynamic questions from backend (fall back to MOCK_QUESTIONS if unavailable)
       try {
-        const qRes = await fetch(`http://localhost:8000/questions?exam_id=${encodeURIComponent(selectedExamId)}&student_view=true`);
+        const qRes = await fetch(`${API_BASE}/questions?exam_id=${encodeURIComponent(selectedExamId)}&student_view=true`);
         if (qRes.ok) {
           const qData = await qRes.json();
           if (Array.isArray(qData) && qData.length > 0) {
@@ -681,7 +684,7 @@ export default function App() {
         // Backend unavailable — keep MOCK_QUESTIONS
       }
 
-      const response = await fetch("http://localhost:8000/session/start", {
+      const response = await fetch(`${API_BASE}/session/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -710,7 +713,7 @@ export default function App() {
       }, 1000);
 
       // Create WebSocket connection
-      const socket = new WebSocket(`ws://localhost:8000/session/${data.session_id}/stream`);
+      const socket = new WebSocket(`${WS_BASE}/session/${data.session_id}/stream`);
       
       socket.onopen = () => {
         console.log("[STUDENT CLIENT] Stream WS connected.");
@@ -742,7 +745,7 @@ export default function App() {
     const targetSessionId = sessionId || sessionIdRef.current;
     if (targetSessionId) {
       try {
-        const res = await fetch(`http://localhost:8000/session/${targetSessionId}/submit`, {
+        const res = await fetch(`${API_BASE}/session/${targetSessionId}/submit`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ answers })

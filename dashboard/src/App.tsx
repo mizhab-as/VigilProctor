@@ -3,6 +3,9 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from "recharts";
 
+const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
+const WS_BASE = (import.meta.env.VITE_WS_URL || API_BASE.replace(/^http/, "ws")).replace(/\/$/, "");
+
 interface ActiveSession {
   session_id: string;
   student_id: string;
@@ -130,7 +133,7 @@ export default function App() {
 
     const fetchActive = async () => {
       try {
-        const res = await fetch("http://localhost:8000/session/active");
+        const res = await fetch(`${API_BASE}/session/active`);
         if (res.ok) {
           const data = await res.json();
           setActiveSessions(data);
@@ -148,7 +151,7 @@ export default function App() {
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
     const connectWS = () => {
-      socket = new WebSocket("ws://localhost:8000/dashboard/alerts");
+      socket = new WebSocket(`${WS_BASE}/dashboard/alerts`);
 
       socket.onopen = () => {
         console.log("[DASHBOARD] Alerts WebSocket connected.");
@@ -260,7 +263,7 @@ export default function App() {
   // Fetch the full questions list for management view, filtered by exam ID
   const fetchQuestions = async (examId = selectedExamId) => {
     try {
-      const res = await fetch(`http://localhost:8000/questions?exam_id=${encodeURIComponent(examId)}`);
+      const res = await fetch(`${API_BASE}/questions?exam_id=${encodeURIComponent(examId)}`);
       if (res.ok) setQuestionsList(await res.json());
     } catch (err) { console.error("Failed to load questions:", err); }
   };
@@ -268,7 +271,7 @@ export default function App() {
   // Fetch available exams list
   const fetchExams = async () => {
     try {
-      const res = await fetch("http://localhost:8000/exams");
+      const res = await fetch(`${API_BASE}/exams`);
       if (res.ok) {
         const data = await res.json();
         setExamsList(data);
@@ -285,7 +288,7 @@ export default function App() {
   const fetchExamStats = async (examId = selectedExamId) => {
     if (!examId) { setExamStats(null); return; }
     try {
-      const res = await fetch(`http://localhost:8000/exams/${encodeURIComponent(examId)}/stats`);
+      const res = await fetch(`${API_BASE}/exams/${encodeURIComponent(examId)}/stats`);
       if (res.ok) {
         const data = await res.json();
         setExamStats(data);
@@ -299,7 +302,7 @@ export default function App() {
   const toggleActiveExam = async () => {
     if (!selectedExamId) return;
     try {
-      const res = await fetch(`http://localhost:8000/exams/${encodeURIComponent(selectedExamId)}/toggle-active`, {
+      const res = await fetch(`${API_BASE}/exams/${encodeURIComponent(selectedExamId)}/toggle-active`, {
         method: "POST"
       });
       if (res.ok) {
@@ -313,7 +316,7 @@ export default function App() {
   // Fetch authorized students list
   const fetchStudents = async () => {
     try {
-      const res = await fetch("http://localhost:8000/students");
+      const res = await fetch(`${API_BASE}/students`);
       if (res.ok) setStudentsList(await res.json());
     } catch (err) {
       console.error("Failed to load students:", err);
@@ -323,7 +326,7 @@ export default function App() {
   // Fetch all sessions (live & past)
   const fetchAllSessions = async () => {
     try {
-      const res = await fetch("http://localhost:8000/sessions");
+      const res = await fetch(`${API_BASE}/sessions`);
       if (res.ok) setAllSessions(await res.json());
     } catch (err) {
       console.error("Failed to load sessions:", err);
@@ -368,7 +371,7 @@ export default function App() {
     }
 
     try {
-      const res = await fetch("http://localhost:8000/students/upload", {
+      const res = await fetch(`${API_BASE}/students/upload`, {
         method: "POST",
         body: formData
       });
@@ -405,7 +408,7 @@ export default function App() {
     }
 
     try {
-      const res = await fetch("http://localhost:8000/questions/upload", {
+      const res = await fetch(`${API_BASE}/questions/upload`, {
         method: "POST",
         body: formData
       });
@@ -434,7 +437,7 @@ export default function App() {
     if (!newQuestion.text.trim() || newQuestion.options.some(o => !o.trim())) return;
     setSavingQuestion(true);
     try {
-      const res = await fetch("http://localhost:8000/questions", {
+      const res = await fetch(`${API_BASE}/questions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
@@ -460,7 +463,7 @@ export default function App() {
     setCreatingExam(true);
     setExamCreateStatus("");
     try {
-      const res = await fetch("http://localhost:8000/exams", {
+      const res = await fetch(`${API_BASE}/exams`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -492,7 +495,7 @@ export default function App() {
     setQuestionsList(prev => prev.filter(q => q.id !== qId));
     setQuestionActionStatus("Deleting question…");
     try {
-      const res = await fetch(`http://localhost:8000/questions/${qId}`, { method: "DELETE" });
+      const res = await fetch(`${API_BASE}/questions/${qId}`, { method: "DELETE" });
       if (res.ok) {
         setQuestionActionStatus(`Question #${qId} deleted.`);
         setTimeout(() => setQuestionActionStatus(""), 3000);
@@ -512,7 +515,7 @@ export default function App() {
     setQuestionsList([]);
     setQuestionActionStatus(`Clearing ${qCount} questions…`);
     try {
-      const res = await fetch(`http://localhost:8000/exams/${encodeURIComponent(examId)}/questions`, { method: "DELETE" });
+      const res = await fetch(`${API_BASE}/exams/${encodeURIComponent(examId)}/questions`, { method: "DELETE" });
       if (res.ok) {
         setQuestionActionStatus(`Successfully deleted all questions for exam '${examId}'.`);
         setTimeout(() => setQuestionActionStatus(""), 4000);
@@ -532,11 +535,11 @@ export default function App() {
     if (!examId) return;
     setQuestionActionStatus(`Deleting exam cohort '${examId}'…`);
     try {
-      const res = await fetch(`http://localhost:8000/exams/${encodeURIComponent(examId)}`, { method: "DELETE" });
+      const res = await fetch(`${API_BASE}/exams/${encodeURIComponent(examId)}`, { method: "DELETE" });
       if (res.ok) {
         setQuestionActionStatus(`Successfully deleted exam cohort '${examId}'.`);
         setTimeout(() => setQuestionActionStatus(""), 4000);
-        const updatedExamsRes = await fetch("http://localhost:8000/exams");
+        const updatedExamsRes = await fetch(`${API_BASE}/exams`);
         if (updatedExamsRes.ok) {
           const updatedList = await updatedExamsRes.json();
           setExamsList(updatedList);
@@ -564,7 +567,7 @@ export default function App() {
   const loadSessionReport = async (sessionId: string) => {
     setSelectedSessionId(sessionId);
     try {
-      const res = await fetch(`http://localhost:8000/session/${sessionId}/report`);
+      const res = await fetch(`${API_BASE}/session/${sessionId}/report`);
       if (res.ok) {
         const data = await res.json();
         setSessionReport(data);
@@ -579,7 +582,7 @@ export default function App() {
   const clearAllSessions = async () => {
     if (!confirm("Are you sure you want to clear ALL student session history and flags from the database? This action cannot be undone.")) return;
     try {
-      const res = await fetch("http://localhost:8000/sessions", { method: "DELETE" });
+      const res = await fetch(`${API_BASE}/sessions`, { method: "DELETE" });
       if (res.ok) {
         setAllSessions([]);
         setSessionReport(null);
@@ -596,7 +599,7 @@ export default function App() {
     if (e) e.stopPropagation();
     if (!confirm(`Are you sure you want to clear all exam sessions for student '${studentId}'?`)) return;
     try {
-      const res = await fetch(`http://localhost:8000/sessions/student/${encodeURIComponent(studentId)}`, { method: "DELETE" });
+      const res = await fetch(`${API_BASE}/sessions/student/${encodeURIComponent(studentId)}`, { method: "DELETE" });
       if (res.ok) {
         setAllSessions((prev) => prev.filter(s => s.student_id !== studentId));
         if (sessionReport?.student_id === studentId) {
@@ -634,7 +637,7 @@ export default function App() {
   const handleAlertOverride = async (status: "confirmed" | "dismissed") => {
     if (!selectedAlert) return;
     try {
-      const res = await fetch(`http://localhost:8000/session/${selectedAlert.session_id}/alert/${selectedAlert.id}/override`, {
+      const res = await fetch(`${API_BASE}/session/${selectedAlert.session_id}/alert/${selectedAlert.id}/override`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status })
@@ -1864,7 +1867,7 @@ export default function App() {
                                   onClick={async () => {
                                     if (!window.confirm(`Remove "${student.student_name}" (${student.student_id})?`)) return;
                                     try {
-                                      const res = await fetch(`http://localhost:8000/students/${encodeURIComponent(student.student_id)}`, { method: 'DELETE' });
+                                      const res = await fetch(`${API_BASE}/students/${encodeURIComponent(student.student_id)}`, { method: 'DELETE' });
                                       if (res.ok) setStudentsList(prev => prev.filter(s => s.student_id !== student.student_id));
                                     } catch { setStudentsUploadStatus('Error: Failed to delete student'); }
                                   }}
@@ -1921,7 +1924,7 @@ export default function App() {
                                   e.stopPropagation();
                                   if (!window.confirm(`Delete all ${members.length} students in "${groupName}"? Cannot be undone.`)) return;
                                   try {
-                                    const res = await fetch(`http://localhost:8000/students/group/${encodeURIComponent(groupName)}`, { method: 'DELETE' });
+                                    const res = await fetch(`${API_BASE}/students/group/${encodeURIComponent(groupName)}`, { method: 'DELETE' });
                                     if (res.ok) {
                                       setStudentsList(prev => prev.filter(s => s.class_group !== groupName));
                                       setExpandedGroups(prev => { const n = new Set(prev); n.delete(groupName); return n; });
@@ -2429,7 +2432,7 @@ export default function App() {
                 {selectedAlert.video_clip_path ? (
                   <div style={{ border: '1px solid var(--line)', borderRadius: '4px', overflow: 'hidden', backgroundColor: '#000', aspectRatio: '16/9', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                     <video
-                      src={`http://localhost:8000${selectedAlert.video_clip_path}`}
+                      src={`${API_BASE}${selectedAlert.video_clip_path}`}
                       controls
                       autoPlay
                       style={{ width: '100%', height: '100%', objectFit: 'contain', outline: 'none' }}
@@ -2438,7 +2441,7 @@ export default function App() {
                 ) : selectedAlert.frame_path ? (
                   <div style={{ border: '1px solid var(--line)', borderRadius: '4px', overflow: 'hidden', backgroundColor: '#000', aspectRatio: '16/9' }}>
                     <img
-                      src={`http://localhost:8000${selectedAlert.frame_path}`}
+                      src={`${API_BASE}${selectedAlert.frame_path}`}
                       alt="Evidence Frame"
                       style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                     />
