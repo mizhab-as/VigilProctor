@@ -6,3 +6,5 @@ dataset/
 runs/
 *.pt
 .DS_Store
+dist/
+

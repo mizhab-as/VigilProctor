@@ -855,6 +855,11 @@ export default function App() {
                 Sign in
               </button>
             </form>
+
+            <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '12.5px', fontFamily: "'IBM Plex Mono', monospace" }}>
+              <span style={{ color: '#5B6472' }}>Are you a student? </span>
+              <a href="/" style={{ color: '#1E3A5F', fontWeight: 600, textDecoration: 'none', borderBottom: '1px solid #1E3A5F' }}>Go to Student Sign-In →</a>
+            </div>
           </div>
 
           <div style={{

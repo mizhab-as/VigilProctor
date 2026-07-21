@@ -1082,6 +1082,11 @@ export default function App() {
                     {authenticating ? 'Verifying Credentials…' : 'Log in to Exam Hall'}
                   </button>
                 </form>
+
+                <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '12.5px', fontFamily: "'IBM Plex Mono', monospace" }}>
+                  <span style={{ color: 'var(--ink-soft)' }}>Are you an invigilator? </span>
+                  <a href="/admin/" style={{ color: '#1E3A5F', fontWeight: 600, textDecoration: 'none', borderBottom: '1px solid #1E3A5F' }}>Go to Admin Console →</a>
+                </div>
               </>
             ) : (
               <>

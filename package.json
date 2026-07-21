@@ -1,0 +1,10 @@
+{
+  "name": "vigilproctor-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build:client": "npm run build --prefix client",
+    "build:dashboard": "npm run build --prefix dashboard",
+    "build": "npm run build:client && npm run build:dashboard && rm -rf dist && mkdir -p dist/admin && cp -r client/dist/* dist/ && cp -r dashboard/dist/* dist/admin/"
+  }
+}
