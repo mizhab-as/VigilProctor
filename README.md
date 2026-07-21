@@ -8,8 +8,7 @@ ExamGuard AI is a real-time online exam proctoring system based on motion-based 
 
 ```
 VigilProctor (Monorepo)
-├── client/          ← Student Exam Portal (React/Vite)
-├── dashboard/       ← Invigilator Control Station (React/Vite)
+├── client/          ← Unified Client Portal (React/Vite - Houses Student & Admin views)
 └── backend/         ← FastAPI Proctoring Backend (Python/SQLite)
 ```
 
@@ -25,9 +24,8 @@ chmod +x run.sh
 ```
 
 This starts:
-- **Unified Portal Selection Screen / Student Sign-In:** [http://localhost:3000](http://localhost:3000)
-- **Invigilator Admin Dashboard:** [http://localhost:3001/admin/](http://localhost:3001/admin/)
-- **FastAPI Backend server:** [http://localhost:8000](http://localhost:8000)
+- **Unified Landing Page (Portal Selector):** [http://localhost:3000](http://localhost:3000)
+- **FastAPI Backend Server:** [http://localhost:8000](http://localhost:8000)
 
 *Credentials for testing:*
 - Student: (Upload `test/class_a_students.csv` in the directory, use any credentials from it)
@@ -44,13 +42,13 @@ Mount the backend on a platform that supports persistent web sockets:
 - **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 - Select **Python 3** and add environment variable `PYTHON_VERSION=3.11.0`.
 
-### Step 2: Deploy Unified Frontend (Vercel)
-Deploy both the Student Portal and Invigilator Dashboard as a single deployment on Vercel:
+### Step 2: Deploy Frontend (Vercel)
+Deploy the unified client portal as a single deployment on Vercel:
 - Import the root repository.
-- Keep **Root Directory** as the root (`/`).
+- Set **Root Directory** to `client`.
 - Add the following **Environment Variables**:
   - `VITE_API_URL` = `https://your-backend-url.onrender.com`
   - `VITE_WS_URL` = `wss://your-backend-url.onrender.com`
 - Click **Deploy**.
 
-*Visiting the Vercel link will show the beautiful role selector where you can jump between student portal and admin console.*
+*Visiting the single Vercel link will show the beautiful role selector where you can jump between student portal and admin console.*

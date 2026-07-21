@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Webcam from "react-webcam";
 import * as ort from "onnxruntime-web";
+import InvigilatorDashboard from "./InvigilatorDashboard";
 
 const API_BASE = (import.meta.env.VITE_API_URL || "http://localhost:8000").replace(/\/$/, "");
 const WS_BASE = (import.meta.env.VITE_WS_URL || API_BASE.replace(/^http/, "ws")).replace(/\/$/, "");
@@ -58,7 +59,7 @@ const CLASS_LABELS: Record<number, string> = {
 };
 
 export default function App() {
-  const [view, setView] = useState<"portal" | "student_login">("portal");
+  const [portalView, setPortalView] = useState<"portal" | "student" | "invigilator">("portal");
   const [studentId, setStudentId] = useState("");
   const [passcode, setPasscode] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -1008,7 +1009,11 @@ export default function App() {
     );
   }
 
-  if (!sessionStarted && view === "portal") {
+  if (portalView === "invigilator") {
+    return <InvigilatorDashboard onBackToPortal={() => setPortalView("portal")} />;
+  }
+
+  if (!sessionStarted && portalView === "portal") {
     return (
       <div style={{
         display: "flex",
@@ -1070,7 +1075,7 @@ export default function App() {
         }}>
           {/* Student Card */}
           <div 
-            onClick={() => setView("student_login")}
+            onClick={() => setPortalView("student")}
             className="portal-card"
             style={{
               flex: "1 1 340px",
@@ -1123,7 +1128,7 @@ export default function App() {
 
           {/* Invigilator Card */}
           <div 
-            onClick={() => window.location.href = "/admin/"}
+            onClick={() => setPortalView("invigilator")}
             className="portal-card"
             style={{
               flex: "1 1 340px",
@@ -1215,7 +1220,7 @@ export default function App() {
             {!isLoggedIn ? (
               <>
                 <button 
-                  onClick={() => setView("portal")} 
+                  onClick={() => setPortalView("portal")} 
                   style={{ 
                     background: "transparent", 
                     border: "none", 
