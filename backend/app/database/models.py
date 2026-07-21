@@ -3,9 +3,17 @@ from datetime import datetime
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
-DB_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../data"))
-os.makedirs(DB_DIR, exist_ok=True)
-DATABASE_URL = f"sqlite:///{os.path.join(DB_DIR, 'examguard.db')}"
+DB_PATH = os.environ.get("DB_PATH")
+if DB_PATH:
+    # Ensure parent directory of DB_PATH exists
+    parent_dir = os.path.dirname(DB_PATH)
+    if parent_dir:
+        os.makedirs(parent_dir, exist_ok=True)
+    DATABASE_URL = f"sqlite:///{DB_PATH}"
+else:
+    DB_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../data"))
+    os.makedirs(DB_DIR, exist_ok=True)
+    DATABASE_URL = f"sqlite:///{os.path.join(DB_DIR, 'examguard.db')}"
 
 Base = declarative_base()
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
