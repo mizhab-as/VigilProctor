@@ -1,6 +1,6 @@
-# ExamGuard AI — Technical System Documentation & Architecture Guide
+# ExamGuard — Technical System Documentation & Architecture Guide
 
-ExamGuard AI is a real-time online exam proctoring system based on the principles of **motion-based keyframe extraction, edge-side neural inference, multi-modal sensor fusion, and invigilator dashboard visualization**. Below is the in-depth technical breakdown of every pipeline in the system.
+ExamGuard is a real-time online exam proctoring system based on the principles of **motion-based keyframe extraction, edge-side neural inference, multi-modal sensor fusion, and invigilator dashboard visualization**. Below is the in-depth technical breakdown of every pipeline in the system.
 
 ---
 

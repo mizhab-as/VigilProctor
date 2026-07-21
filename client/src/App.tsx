@@ -1109,7 +1109,7 @@ export default function App() {
             letterSpacing: "0.015em",
             margin: "0 0 14px 0",
             color: "#F6F3EC"
-          }}>ExamGuard AI</h1>
+          }}>ExamGuard</h1>
           <p style={{
             fontFamily: "'IBM Plex Mono', monospace",
             fontSize: "11.5px",
@@ -1234,7 +1234,7 @@ export default function App() {
             fontSize: "10px", letterSpacing: "0.14em", textTransform: "uppercase",
             color: "rgba(199,212,227,0.45)"
           }}>
-            <span>ExamGuard AI</span>
+            <span>ExamGuard</span>
             <span style={{ width: "3px", height: "3px", borderRadius: "50%", background: "rgba(199,212,227,0.3)" }}></span>
             <span>Ledgers of Academic Integrity</span>
           </div>
@@ -1302,7 +1302,7 @@ export default function App() {
                 stroke="#1E3A5F" strokeWidth="1.4" fill="#F6F3EC"/>
               <text x="20" y="21.5" textAnchor="middle" fontFamily="Newsreader, serif" fontSize="10" fontWeight="600" fill="#1E3A5F">EG</text>
             </svg>
-            <span className="brand-word">EXAMGUARD AI</span>
+            <span className="brand-word">EXAMGUARD</span>
           </div>
 
           <div className="form-body">

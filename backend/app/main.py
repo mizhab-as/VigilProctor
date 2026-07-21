@@ -23,7 +23,7 @@ os.makedirs(FRAMES_DIR, exist_ok=True)
 os.makedirs(THUMBNAILS_DIR, exist_ok=True)
 os.makedirs(CLIPS_DIR, exist_ok=True)
 
-app = FastAPI(title="ExamGuard AI - Online Proctoring Engine")
+app = FastAPI(title="ExamGuard - Online Proctoring Engine")
 
 # Add CORS Middleware for development access
 app.add_middleware(

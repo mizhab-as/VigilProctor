@@ -795,7 +795,7 @@ export default function InvigilatorDashboard({ onBackToPortal }: { onBackToPorta
                 <text x="20" y="21.5" textAnchor="middle" fontFamily="Newsreader, serif" fontSize="10" fontWeight="600" fill="#1E3A5F">EG</text>
               </svg>
               <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, letterSpacing: '0.14em', color: '#5B6472', fontWeight: 500 }}>
-                EXAMGUARD AI
+                EXAMGUARD
               </span>
             </div>
 
@@ -2622,7 +2622,7 @@ export default function InvigilatorDashboard({ onBackToPortal }: { onBackToPorta
         borderTop: '1px solid var(--line)',
         backgroundColor: 'var(--panel)'
       }}>
-        ExamGuard AI Invigilation Dashboard · Full Stack Integrity Control
+        ExamGuard Invigilation Dashboard · Full Stack Integrity Control
       </footer>
     </div>
   </div>

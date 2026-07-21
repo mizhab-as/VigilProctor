@@ -1,13 +1,13 @@
-# ExamGuard AI — Proctoring & Examination Integrity Suite
+# ExamGuard — Proctoring & Examination Integrity Suite
 
-ExamGuard AI is a real-time online exam proctoring system based on motion-based keyframe extraction, edge-side neural inference, multi-modal sensor fusion, and invigilator dashboard visualization.
+ExamGuard is a real-time online exam proctoring system based on motion-based keyframe extraction, edge-side neural inference, multi-modal sensor fusion, and invigilator dashboard visualization.
 
 ---
 
 ## 🏛️ Project Architecture
 
 ```
-VigilProctor (Monorepo)
+ExamGuard (Monorepo)
 ├── client/          ← Unified Client Portal (React/Vite - Houses Student & Admin views)
 └── backend/         ← FastAPI Proctoring Backend (Python/SQLite)
 ```
