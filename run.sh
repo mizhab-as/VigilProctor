@@ -26,7 +26,7 @@ cd ..
 echo "================================================="
 echo "✅ All services successfully launched!"
 echo "• Student Portal:   http://localhost:3000"
-echo "• Invigilator App:  http://localhost:3001"
+echo "• Invigilator App:  http://localhost:3001/admin/"
 echo "• Backend FastAPI:  http://localhost:8000"
 echo "Press [Ctrl+C] to stop all services simultaneously."
 echo "================================================="
