@@ -140,6 +140,10 @@ class ExamCreate(BaseModel):
     title: str
     description: str | None = None
 
+class StudentVerifyRequest(BaseModel):
+    student_id: str
+    passcode: str
+
 @app.get("/exams")
 def get_all_exams(student_view: bool = False, db: Session = Depends(get_db)):
     query = db.query(ExamModel)
@@ -212,7 +216,8 @@ def get_exam_stats(exam_id: str, db: Session = Depends(get_db)):
     }
 
 @app.get("/questions")
-def get_questions(exam_id: str = "default", db: Session = Depends(get_db)):
+def get_questions(exam_id: str = "default", student_view: bool = False, db: Session = Depends(get_db)):
+    """Return questions. Pass student_view=true to hide correct_option_idx from students."""
     questions = db.query(QuestionModel).filter(QuestionModel.exam_id == exam_id).all()
     result = []
     for q in questions:
@@ -220,12 +225,15 @@ def get_questions(exam_id: str = "default", db: Session = Depends(get_db)):
             options = json.loads(q.options_json)
         except Exception:
             options = []
-        result.append({
+        row = {
             "id": q.id,
             "exam_id": q.exam_id,
             "text": q.text,
             "options": options
-        })
+        }
+        if not student_view:
+            row["correct_option_idx"] = q.correct_option_idx
+        result.append(row)
     return result
 
 @app.post("/questions")
@@ -252,6 +260,55 @@ def create_question(req: QuestionCreate, db: Session = Depends(get_db)):
         "text": new_q.text,
         "options": req.options,
         "correct_option_idx": new_q.correct_option_idx
+    }
+
+@app.delete("/questions/{question_id}")
+def delete_question(question_id: int, db: Session = Depends(get_db)):
+    q = db.query(QuestionModel).filter(QuestionModel.id == question_id).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="Question not found.")
+    db.delete(q)
+    db.commit()
+    return {"status": "success", "message": f"Question {question_id} deleted."}
+
+@app.delete("/exams/{exam_id}/questions")
+def delete_exam_questions(exam_id: str, db: Session = Depends(get_db)):
+    deleted_count = db.query(QuestionModel).filter(QuestionModel.exam_id == exam_id).delete()
+    db.commit()
+    return {"status": "success", "message": f"Deleted {deleted_count} questions for exam '{exam_id}'."}
+
+@app.delete("/exams/{exam_id}")
+def delete_exam(exam_id: str, db: Session = Depends(get_db)):
+    exam = db.query(ExamModel).filter(ExamModel.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found.")
+    db.query(QuestionModel).filter(QuestionModel.exam_id == exam_id).delete()
+    db.delete(exam)
+    db.commit()
+    return {"status": "success", "message": f"Exam cohort '{exam_id}' deleted."}
+
+@app.post("/students/verify")
+def verify_student(req: StudentVerifyRequest, db: Session = Depends(get_db)):
+    student = db.query(AuthorizedStudent).filter(
+        AuthorizedStudent.student_id == req.student_id.strip()
+    ).first()
+
+    if not student:
+        raise HTTPException(
+            status_code=401,
+            detail="Registration ID not found. Please contact your invigilator."
+        )
+
+    if student.passcode != req.passcode.strip():
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect passcode. Please check your credentials."
+        )
+
+    return {
+        "status": "success",
+        "student_id": student.student_id,
+        "student_name": student.student_name
     }
 
 @app.post("/session/start")
@@ -360,10 +417,20 @@ def get_active_sessions(db: Session = Depends(get_db)):
         })
     return result
 
+def format_iso(dt):
+    if dt is None:
+        return None
+    iso = dt.isoformat()
+    if not iso.endswith("Z") and "+" not in iso:
+        iso += "Z"
+    return iso
+
 @app.get("/sessions")
-def get_all_sessions(student_id: str = "", db: Session = Depends(get_db)):
-    """Return completed sessions, optionally filtered by student_id substring."""
-    query = db.query(ExamSession).filter(ExamSession.status == "completed")
+def get_all_sessions(student_id: str = "", status: str = "", db: Session = Depends(get_db)):
+    """Return all sessions (both live in_progress and completed), optionally filtered by student_id or status."""
+    query = db.query(ExamSession)
+    if status.strip():
+        query = query.filter(ExamSession.status == status.strip())
     if student_id.strip():
         query = query.filter(ExamSession.student_id.ilike(f"%{student_id.strip()}%"))
     sessions = query.order_by(ExamSession.start_time.desc()).all()
@@ -378,8 +445,9 @@ def get_all_sessions(student_id: str = "", db: Session = Depends(get_db)):
         result.append({
             "session_id": s.id,
             "student_id": s.student_id,
-            "start_time": s.start_time.isoformat(),
-            "end_time": s.end_time.isoformat() if s.end_time else None,
+            "exam_id": s.exam_id,
+            "start_time": format_iso(s.start_time),
+            "end_time": format_iso(s.end_time),
             "status": s.status,
             "score": s.score,
             "percentage": s.percentage,
@@ -387,6 +455,34 @@ def get_all_sessions(student_id: str = "", db: Session = Depends(get_db)):
             "status_color": status_color
         })
     return result
+
+@app.delete("/sessions")
+def delete_all_sessions(db: Session = Depends(get_db)):
+    """Clear all student sessions and alert logs from database."""
+    deleted_alerts = db.query(SessionAlert).delete()
+    deleted_sessions = db.query(ExamSession).delete()
+    db.commit()
+    return {
+        "status": "success",
+        "message": f"Cleared {deleted_sessions} sessions and {deleted_alerts} alert logs."
+    }
+
+@app.delete("/sessions/student/{student_id}")
+def delete_student_sessions(student_id: str, db: Session = Depends(get_db)):
+    """Clear all sessions and alert logs for a specific student_id."""
+    student_sessions = db.query(ExamSession).filter(ExamSession.student_id == student_id).all()
+    session_ids = [s.id for s in student_sessions]
+    
+    deleted_alerts = 0
+    if session_ids:
+        deleted_alerts = db.query(SessionAlert).filter(SessionAlert.session_id.in_(session_ids)).delete(synchronize_session=False)
+    
+    deleted_sessions = db.query(ExamSession).filter(ExamSession.student_id == student_id).delete(synchronize_session=False)
+    db.commit()
+    return {
+        "status": "success",
+        "message": f"Cleared {deleted_sessions} sessions and {deleted_alerts} alert logs for student '{student_id}'."
+    }
 
 @app.get("/session/{session_id}/report")
 def get_session_report(session_id: str, db: Session = Depends(get_db)):
@@ -402,7 +498,7 @@ def get_session_report(session_id: str, db: Session = Depends(get_db)):
     for a in alerts:
         alert_logs.append({
             "id": a.id,
-            "timestamp": a.timestamp.isoformat(),
+            "timestamp": format_iso(a.timestamp),
             "anomaly_type": a.anomaly_type,
             "confidence": a.confidence,
             "frame_path": a.frame_path,
@@ -422,8 +518,8 @@ def get_session_report(session_id: str, db: Session = Depends(get_db)):
     return {
         "session_id": session.id,
         "student_id": session.student_id,
-        "start_time": session.start_time.isoformat(),
-        "end_time": session.end_time.isoformat() if session.end_time else None,
+        "start_time": format_iso(session.start_time),
+        "end_time": format_iso(session.end_time),
         "status": session.status,
         "score": session.score,
         "percentage": session.percentage,
@@ -660,11 +756,31 @@ async def override_alert_status(
 
 @app.get("/students")
 def get_authorized_students(db: Session = Depends(get_db)):
-    students = db.query(AuthorizedStudent).all()
+    students = db.query(AuthorizedStudent).order_by(AuthorizedStudent.class_group, AuthorizedStudent.student_id).all()
     return [
-        {"student_id": s.student_id, "student_name": s.student_name, "passcode": s.passcode}
+        {
+            "student_id": s.student_id,
+            "student_name": s.student_name,
+            "passcode": s.passcode,
+            "class_group": s.class_group or "Ungrouped"
+        }
         for s in students
     ]
+
+@app.delete("/students/{student_id}")
+def delete_student(student_id: str, db: Session = Depends(get_db)):
+    student = db.query(AuthorizedStudent).filter(AuthorizedStudent.student_id == student_id.strip()).first()
+    if not student:
+        raise HTTPException(status_code=404, detail=f"Student '{student_id}' not found.")
+    db.delete(student)
+    db.commit()
+    return {"status": "success", "message": f"Student '{student_id}' deleted."}
+
+@app.delete("/students/group/{class_group}")
+def delete_student_group(class_group: str, db: Session = Depends(get_db)):
+    deleted = db.query(AuthorizedStudent).filter(AuthorizedStudent.class_group == class_group.strip()).delete()
+    db.commit()
+    return {"status": "success", "message": f"Deleted {deleted} students from group '{class_group}'."}
 
 @app.post("/students/upload")
 async def upload_students_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
@@ -678,12 +794,14 @@ async def upload_students_csv(file: UploadFile = File(...), db: Session = Depend
 
     reader = csv.DictReader(io.StringIO(csv_text))
     # Required headers: student_id, student_name, passcode
-    # Support common variants like registration_id, name, password
+    # Optional: class_group
     student_count = 0
+    class_group_from_file = None
     for row in reader:
         sid = row.get("student_id") or row.get("registration_id") or row.get("id")
         sname = row.get("student_name") or row.get("name")
         passcode = row.get("passcode") or row.get("password") or row.get("pass")
+        class_group = row.get("class_group") or row.get("class") or row.get("group")
 
         if not sid or not sname or not passcode:
             continue
@@ -691,47 +809,58 @@ async def upload_students_csv(file: UploadFile = File(...), db: Session = Depend
         sid = sid.strip()
         sname = sname.strip()
         passcode = passcode.strip()
+        class_group = class_group.strip() if class_group else None
+        if class_group:
+            class_group_from_file = class_group  # Track for response
 
         # Upsert
         student = db.query(AuthorizedStudent).filter(AuthorizedStudent.student_id == sid).first()
         if student:
             student.student_name = sname
             student.passcode = passcode
+            if class_group:
+                student.class_group = class_group
         else:
-            student = AuthorizedStudent(student_id=sid, student_name=sname, passcode=passcode)
+            student = AuthorizedStudent(student_id=sid, student_name=sname, passcode=passcode, class_group=class_group)
             db.add(student)
         student_count += 1
 
     db.commit()
-    return {"status": "success", "message": f"Successfully imported {student_count} students."}
+    msg = f"Successfully imported {student_count} students."
+    if class_group_from_file:
+        msg += f" Class group: '{class_group_from_file}'."
+    return {"status": "success", "message": msg}
 
 @app.post("/questions/upload")
 async def upload_questions_file(
     file: UploadFile = File(...),
-    exam_id: str = Form("default"),
+    exam_id: str | None = Form(None),
     db: Session = Depends(get_db)
 ):
     import csv
     import io
     content = await file.read()
     filename = file.filename.lower()
-
-    # Determine default ID/Title from form parameter or filename base
-    form_id = exam_id.strip()
     file_base = filename.split(".")[0].strip()
+
+    form_id = exam_id.strip() if (exam_id and exam_id.strip()) else ""
     
-    if form_id == "default" and file_base:
-        default_exam_id = file_base
+    # Prioritize form_id if provided by invigilator in dashboard UI
+    if form_id:
+        target_exam_id = form_id
+    elif file_base:
+        target_exam_id = file_base
     else:
-        default_exam_id = form_id
-        
-    default_exam_title = default_exam_id.replace("_", " ").title()
+        target_exam_id = "exam_cohort_1"
+
+    existing_exam = db.query(ExamModel).filter(ExamModel.id == target_exam_id).first()
+    if existing_exam and existing_exam.title:
+        target_exam_title = existing_exam.title
+    else:
+        target_exam_title = target_exam_id.replace("_", " ").title()
 
     questions_loaded = 0
     parsed_questions = []
-
-    target_exam_id = default_exam_id
-    target_exam_title = default_exam_title
 
     if filename.endswith(".json"):
         try:
@@ -739,8 +868,8 @@ async def upload_questions_file(
             if not isinstance(data, list):
                 raise ValueError("JSON file must contain a list of questions.")
             
-            # Look at first item to see if it overrides exam metadata
-            if len(data) > 0:
+            # If no form_id was passed, look at first item to see if it provides exam metadata
+            if not form_id and len(data) > 0:
                 first_item = data[0]
                 if "exam_id" in first_item:
                     target_exam_id = str(first_item["exam_id"]).strip()
@@ -769,8 +898,8 @@ async def upload_questions_file(
             reader = csv.DictReader(io.StringIO(csv_text))
             rows = list(reader)
             
-            # Look at first row to see if it overrides exam metadata
-            if len(rows) > 0:
+            # If no form_id was passed, look at first row to see if it provides exam metadata
+            if not form_id and len(rows) > 0:
                 first_row = rows[0]
                 if first_row.get("exam_id"):
                     target_exam_id = str(first_row.get("exam_id")).strip()
@@ -800,17 +929,18 @@ async def upload_questions_file(
             raise HTTPException(status_code=400, detail=f"Failed to parse CSV file: {e}")
 
     if not target_exam_id:
-        target_exam_id = "default"
+        target_exam_id = form_id or file_base or "exam_cohort_1"
     if not target_exam_title:
         target_exam_title = target_exam_id.replace("_", " ").title()
 
     # Create/Update ExamModel and set it to active
     exam = db.query(ExamModel).filter(ExamModel.id == target_exam_id).first()
     if not exam:
-        exam = ExamModel(id=target_exam_id, title=target_exam_title, description=f"Imported exam cohort '{target_exam_id}'", active=True)
+        exam = ExamModel(id=target_exam_id, title=target_exam_title, description=f"Exam cohort '{target_exam_id}'", active=True)
         db.add(exam)
     else:
-        exam.title = target_exam_title
+        if target_exam_title:
+            exam.title = target_exam_title
         exam.active = True
     db.commit()
 
@@ -830,7 +960,12 @@ async def upload_questions_file(
         questions_loaded += 1
     db.commit()
 
-    return {"status": "success", "message": f"Successfully loaded {questions_loaded} questions into database and cleared previous questions for exam '{target_exam_title}' ({target_exam_id})."}
+    return {
+        "status": "success",
+        "message": f"Successfully loaded {questions_loaded} questions into database for exam '{target_exam_title}' ({target_exam_id}).",
+        "exam_id": target_exam_id,
+        "exam_title": target_exam_title
+    }
 
 @app.post("/session/{session_id}/submit")
 async def submit_exam_grading(session_id: str, req: ExamSubmitRequest, db: Session = Depends(get_db)):

@@ -50,160 +50,20 @@ interface HistoricalReport {
   }>;
 }
 
-interface BenchmarkModel {
-  name: string;
-  precision: number;
-  recall: number;
-  map: number;
-  params: string;
-  latency: number;
-  color: string;
-  prPoints: Array<{ r: number; p: number }>;
-  confusion: number[][];
-}
-
-const BENCHMARK_MODELS: BenchmarkModel[] = [
-  {
-    name: "Custom CNN (Baseline)",
-    precision: 88.4,
-    recall: 85.2,
-    map: 87.0,
-    params: "0.5M",
-    latency: 8,
-    color: "#f43f5e",
-    prPoints: [
-      { r: 0.0, p: 1.0 },
-      { r: 0.2, p: 0.95 },
-      { r: 0.4, p: 0.92 },
-      { r: 0.6, p: 0.88 },
-      { r: 0.8, p: 0.80 },
-      { r: 0.9, p: 0.65 },
-      { r: 1.0, p: 0.40 }
-    ],
-    confusion: [
-      [90, 3, 4, 1, 2],
-      [5, 86, 2, 4, 3],
-      [6, 3, 85, 2, 4],
-      [4, 2, 3, 88, 3],
-      [5, 4, 3, 2, 86]
-    ]
-  },
-  {
-    name: "DenseNet121",
-    precision: 91.2,
-    recall: 89.5,
-    map: 90.6,
-    params: "8.0M",
-    latency: 45,
-    color: "#fb923c",
-    prPoints: [
-      { r: 0.0, p: 1.0 },
-      { r: 0.2, p: 0.98 },
-      { r: 0.4, p: 0.95 },
-      { r: 0.6, p: 0.91 },
-      { r: 0.8, p: 0.85 },
-      { r: 0.9, p: 0.74 },
-      { r: 1.0, p: 0.50 }
-    ],
-    confusion: [
-      [92, 2, 3, 1, 2],
-      [4, 89, 2, 3, 2],
-      [4, 2, 90, 1, 3],
-      [3, 2, 2, 91, 2],
-      [3, 3, 2, 2, 90]
-    ]
-  },
-  {
-    name: "Inception-V3",
-    precision: 92.8,
-    recall: 91.0,
-    map: 92.1,
-    params: "23.8M",
-    latency: 85,
-    color: "#60a5fa",
-    prPoints: [
-      { r: 0.0, p: 1.0 },
-      { r: 0.2, p: 0.99 },
-      { r: 0.4, p: 0.97 },
-      { r: 0.6, p: 0.93 },
-      { r: 0.8, p: 0.89 },
-      { r: 0.9, p: 0.80 },
-      { r: 1.0, p: 0.55 }
-    ],
-    confusion: [
-      [93, 2, 2, 1, 2],
-      [3, 91, 1, 3, 2],
-      [3, 1, 92, 1, 3],
-      [2, 2, 2, 93, 1],
-      [3, 2, 2, 1, 92]
-    ]
-  },
-  {
-    name: "Inception-ResNetV2",
-    precision: 93.5,
-    recall: 91.8,
-    map: 93.0,
-    params: "55.8M",
-    latency: 195,
-    color: "#a78bfa",
-    prPoints: [
-      { r: 0.0, p: 1.0 },
-      { r: 0.2, p: 0.99 },
-      { r: 0.4, p: 0.98 },
-      { r: 0.6, p: 0.95 },
-      { r: 0.8, p: 0.91 },
-      { r: 0.9, p: 0.83 },
-      { r: 1.0, p: 0.60 }
-    ],
-    confusion: [
-      [94, 1, 2, 1, 2],
-      [3, 92, 1, 2, 2],
-      [3, 1, 93, 1, 2],
-      [2, 1, 1, 94, 2],
-      [2, 2, 2, 1, 93]
-    ]
-  },
-  {
-    name: "YOLOv5 (Champion)",
-    precision: 95.5,
-    recall: 93.2,
-    map: 95.4,
-    params: "7.2M",
-    latency: 18,
-    color: "#10b981",
-    prPoints: [
-      { r: 0.0, p: 1.0 },
-      { r: 0.2, p: 1.0 },
-      { r: 0.4, p: 0.99 },
-      { r: 0.6, p: 0.98 },
-      { r: 0.8, p: 0.95 },
-      { r: 0.9, p: 0.92 },
-      { r: 1.0, p: 0.75 }
-    ],
-    confusion: [
-      [97, 1, 1, 0, 1],
-      [2, 95, 1, 1, 1],
-      [2, 1, 94, 1, 2],
-      [1, 1, 1, 96, 1],
-      [2, 1, 1, 1, 95]
-    ]
-  }
-];
-
 export default function App() {
   // Authentication Gate
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  // Views: "live", "reports", "benchmarks", "questions", or "students"
-  const [currentView, setCurrentView] = useState<"live" | "reports" | "benchmarks" | "questions" | "students">("live");
+  // Views: "live", "reports", "questions", or "students"
+  const [currentView, setCurrentView] = useState<"live" | "reports" | "questions" | "students">("live");
 
   // Live webcam feeds from students (keyed by session_id)
   const [liveFeeds, setLiveFeeds] = useState<Record<string, string>>({});
 
   // Student directory state
-  const [studentsList, setStudentsList] = useState<{student_id: string; student_name: string; passcode: string}[]>([]);
+  const [studentsList, setStudentsList] = useState<{student_id: string; student_name: string; passcode: string; class_group: string}[]>([]);
   const [uploadingStudents, setUploadingStudents] = useState(false);
   const [studentsUploadStatus, setStudentsUploadStatus] = useState("");
 
@@ -213,6 +73,7 @@ export default function App() {
   const [savingQuestion, setSavingQuestion] = useState(false);
   const [uploadingQuestions, setUploadingQuestions] = useState(false);
   const [questionsUploadStatus, setQuestionsUploadStatus] = useState("");
+  const [questionActionStatus, setQuestionActionStatus] = useState("");
 
   // Exam management state
   const [examsList, setExamsList] = useState<{id: string; title: string; description?: string; active?: boolean}[]>([]);
@@ -221,9 +82,6 @@ export default function App() {
   const [creatingExam, setCreatingExam] = useState(false);
   const [examCreateStatus, setExamCreateStatus] = useState("");
   const [examStats, setExamStats] = useState<{total_completed: number; top_score: string; average_percentage: number; pass_rate: number} | null>(null);
-
-  // Selected benchmark model index (Default to YOLOv5)
-  const [benchmarkModelIdx, setBenchmarkModelIdx] = useState(4);
 
   // Live state
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
@@ -236,9 +94,21 @@ export default function App() {
   const [selectedStudent, setSelectedStudent] = useState<ActiveSession | null>(null);
 
   // Reports state
-  const [reportStudentId, setReportStudentId] = useState("");
+  const [allSessions, setAllSessions] = useState<{
+    session_id: string;
+    student_id: string;
+    exam_id?: string;
+    start_time: string;
+    end_time?: string;
+    status: string;
+    score?: string;
+    percentage?: number;
+    alert_count: number;
+    status_color: string;
+  }[]>([]);
+  const [sessionSearchQuery, setSessionSearchQuery] = useState("");
+  const [sessionStatusFilter, setSessionStatusFilter] = useState<"all" | "in_progress" | "completed">("all");
   const [selectedSessionId, setSelectedSessionId] = useState("");
-  const [searchedSessions, setSearchedSessions] = useState<any[]>([]);
   const [sessionReport, setSessionReport] = useState<HistoricalReport | null>(null);
 
   // Handle simple JWT authentication simulation
@@ -399,12 +269,18 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setExamsList(data);
+        if (data.length > 0) {
+          setSelectedExamId(prev => (!prev || !data.some((e: any) => e.id === prev) ? data[0].id : prev));
+        } else {
+          setSelectedExamId("");
+        }
       }
     } catch (err) { console.error("Failed to load exams:", err); }
   };
 
   // Fetch metrics/statistics for active exam cohort
   const fetchExamStats = async (examId = selectedExamId) => {
+    if (!examId) { setExamStats(null); return; }
     try {
       const res = await fetch(`http://localhost:8000/exams/${encodeURIComponent(examId)}/stats`);
       if (res.ok) {
@@ -418,6 +294,7 @@ export default function App() {
 
   // Toggle active/inactive status of chosen exam cohort
   const toggleActiveExam = async () => {
+    if (!selectedExamId) return;
     try {
       const res = await fetch(`http://localhost:8000/exams/${encodeURIComponent(selectedExamId)}/toggle-active`, {
         method: "POST"
@@ -440,17 +317,37 @@ export default function App() {
     }
   };
 
+  // Fetch all sessions (live & past)
+  const fetchAllSessions = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/sessions");
+      if (res.ok) setAllSessions(await res.json());
+    } catch (err) {
+      console.error("Failed to load sessions:", err);
+    }
+  };
+
   useEffect(() => {
     if (isAuthenticated) {
       fetchStudents();
       fetchExams();
+      fetchAllSessions();
     }
   }, [isAuthenticated]);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && currentView === "reports") {
+      fetchAllSessions();
+    }
+  }, [currentView, isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated && selectedExamId) {
       fetchQuestions(selectedExamId);
       fetchExamStats(selectedExamId);
+    } else if (!selectedExamId) {
+      setQuestionsList([]);
+      setExamStats(null);
     }
   }, [selectedExamId, isAuthenticated]);
 
@@ -493,7 +390,9 @@ export default function App() {
     setQuestionsUploadStatus("");
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("exam_id", selectedExamId);
+    if (selectedExamId) {
+      formData.append("exam_id", selectedExamId);
+    }
 
     try {
       const res = await fetch("http://localhost:8000/questions/upload", {
@@ -503,7 +402,11 @@ export default function App() {
       const data = await res.json();
       if (res.ok) {
         setQuestionsUploadStatus(`Success: ${data.message}`);
-        fetchQuestions(selectedExamId);
+        const uploadedExamId = data.exam_id || selectedExamId;
+        setSelectedExamId(uploadedExamId);
+        await fetchExams();
+        await fetchQuestions(uploadedExamId);
+        await fetchExamStats(uploadedExamId);
       } else {
         setQuestionsUploadStatus(`Error: ${data.detail || "Questions upload failed."}`);
       }
@@ -542,7 +445,8 @@ export default function App() {
   // Create a new exam
   const submitExam = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newExam.id.trim() || !newExam.title.trim()) return;
+    const createdId = newExam.id.trim();
+    if (!createdId || !newExam.title.trim()) return;
     setCreatingExam(true);
     setExamCreateStatus("");
     try {
@@ -550,7 +454,7 @@ export default function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: newExam.id.trim(),
+          id: createdId,
           title: newExam.title.trim(),
           description: newExam.description.trim() || null
         })
@@ -559,7 +463,10 @@ export default function App() {
       if (res.ok) {
         setExamCreateStatus(`Success: Exam '${newExam.title}' created.`);
         setNewExam({ id: "", title: "", description: "" });
+        setSelectedExamId(createdId);
         await fetchExams();
+        await fetchQuestions(createdId);
+        await fetchExamStats(createdId);
       } else {
         setExamCreateStatus(`Error: ${data.detail || "Failed to create exam."}`);
       }
@@ -567,6 +474,79 @@ export default function App() {
       setExamCreateStatus("Error: Failed to connect to server.");
     } finally {
       setCreatingExam(false);
+    }
+  };
+
+  const deleteSingleQuestion = async (qId: number) => {
+    // Optimistic local update
+    setQuestionsList(prev => prev.filter(q => q.id !== qId));
+    setQuestionActionStatus("Deleting question…");
+    try {
+      const res = await fetch(`http://localhost:8000/questions/${qId}`, { method: "DELETE" });
+      if (res.ok) {
+        setQuestionActionStatus(`Question #${qId} deleted.`);
+        setTimeout(() => setQuestionActionStatus(""), 3000);
+      } else {
+        fetchQuestions(selectedExamId); // revert if backend failed
+        setQuestionActionStatus("Error: Failed to delete question on server.");
+      }
+    } catch (err) {
+      console.error("Error deleting question:", err);
+      fetchQuestions(selectedExamId);
+      setQuestionActionStatus("Error: Failed to connect to server.");
+    }
+  };
+
+  const clearAllQuestionsForExam = async (examId: string) => {
+    const qCount = questionsList.length;
+    setQuestionsList([]);
+    setQuestionActionStatus(`Clearing ${qCount} questions…`);
+    try {
+      const res = await fetch(`http://localhost:8000/exams/${encodeURIComponent(examId)}/questions`, { method: "DELETE" });
+      if (res.ok) {
+        setQuestionActionStatus(`Successfully deleted all questions for exam '${examId}'.`);
+        setTimeout(() => setQuestionActionStatus(""), 4000);
+        await fetchQuestions(examId);
+      } else {
+        await fetchQuestions(examId);
+        setQuestionActionStatus("Error: Failed to clear question set on server.");
+      }
+    } catch (err) {
+      console.error("Error clearing questions:", err);
+      await fetchQuestions(examId);
+      setQuestionActionStatus("Error: Failed to connect to server.");
+    }
+  };
+
+  const deleteExamCohort = async (examId: string) => {
+    if (!examId) return;
+    setQuestionActionStatus(`Deleting exam cohort '${examId}'…`);
+    try {
+      const res = await fetch(`http://localhost:8000/exams/${encodeURIComponent(examId)}`, { method: "DELETE" });
+      if (res.ok) {
+        setQuestionActionStatus(`Successfully deleted exam cohort '${examId}'.`);
+        setTimeout(() => setQuestionActionStatus(""), 4000);
+        const updatedExamsRes = await fetch("http://localhost:8000/exams");
+        if (updatedExamsRes.ok) {
+          const updatedList = await updatedExamsRes.json();
+          setExamsList(updatedList);
+          const nextExamId = updatedList.length > 0 ? updatedList[0].id : "";
+          setSelectedExamId(nextExamId);
+          if (nextExamId) {
+            await fetchQuestions(nextExamId);
+            await fetchExamStats(nextExamId);
+          } else {
+            setQuestionsList([]);
+            setExamStats(null);
+          }
+        }
+      } else {
+        const data = await res.json();
+        setQuestionActionStatus(`Error: ${data.detail || "Failed to delete exam cohort."}`);
+      }
+    } catch (err) {
+      console.error("Error deleting exam cohort:", err);
+      setQuestionActionStatus("Error: Failed to connect to server.");
     }
   };
 
@@ -585,22 +565,37 @@ export default function App() {
     }
   };
 
-  // Search completed sessions by student ID
-  const searchSessions = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!reportStudentId.trim()) return;
-
+  // Clear all session history from DB
+  const clearAllSessions = async () => {
+    if (!confirm("Are you sure you want to clear ALL student session history and flags from the database? This action cannot be undone.")) return;
     try {
-      const res = await fetch(`http://localhost:8000/sessions?student_id=${encodeURIComponent(reportStudentId.trim())}`);
+      const res = await fetch("http://localhost:8000/sessions", { method: "DELETE" });
       if (res.ok) {
-        const data = await res.json();
-        setSearchedSessions(data);
-        if (data.length === 0) {
-          alert("No completed sessions found for this student ID.");
+        setAllSessions([]);
+        setSessionReport(null);
+        setSelectedSessionId("");
+        alert("All student session history cleared successfully.");
+      }
+    } catch (err) {
+      console.error("Failed to clear sessions:", err);
+    }
+  };
+
+  // Clear all session history for a specific student
+  const clearStudentSessions = async (studentId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!confirm(`Are you sure you want to clear all exam sessions for student '${studentId}'?`)) return;
+    try {
+      const res = await fetch(`http://localhost:8000/sessions/student/${encodeURIComponent(studentId)}`, { method: "DELETE" });
+      if (res.ok) {
+        setAllSessions((prev) => prev.filter(s => s.student_id !== studentId));
+        if (sessionReport?.student_id === studentId) {
+          setSessionReport(null);
+          setSelectedSessionId("");
         }
       }
     } catch (err) {
-      console.error("Search query failed:", err);
+      console.error(`Failed to clear sessions for student ${studentId}:`, err);
     }
   };
 
@@ -882,12 +877,6 @@ export default function App() {
             className={currentView === "live" ? "active" : ""}
           >
             Live Monitor
-          </button>
-          <button
-            onClick={() => setCurrentView("benchmarks")}
-            className={currentView === "benchmarks" ? "active" : ""}
-          >
-            Model Benchmarks
           </button>
           <button
             onClick={() => setCurrentView("reports")}
@@ -1208,86 +1197,6 @@ export default function App() {
             </div>
           )}
           </>
-        ) : currentView === "benchmarks" ? (
-          /* Benchmarks: clean comparison table + grouped bar chart */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div className="section-title" style={{ marginBottom: 0 }}>
-              <h2>Model performance matrix</h2>
-              <span className="meta">5 architectures benchmarked on ExamGuard dataset</span>
-            </div>
-
-            {/* Compact model comparison table */}
-            <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
-              <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: '18px', letterSpacing: '0.1em' }}>Accuracy comparison</h3>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: "'IBM Plex Mono', monospace", fontSize: '12px' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--line)', color: 'var(--ink-soft)', textAlign: 'left' }}>
-                      {['Model', 'Precision', 'Recall', 'mAP@0.5', 'Params', 'Latency (ms)'].map(h => (
-                        <th key={h} style={{ padding: '8px 16px 8px 0', fontWeight: 500, letterSpacing: '0.08em', fontSize: 9, textTransform: 'uppercase' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {BENCHMARK_MODELS.map((m, i) => (
-                      <tr
-                        key={m.name}
-                        onClick={() => setBenchmarkModelIdx(i)}
-                        style={{
-                          borderBottom: '1px solid var(--line)',
-                          cursor: 'pointer',
-                          background: benchmarkModelIdx === i ? 'rgba(255,255,255,0.04)' : 'transparent',
-                          transition: 'background .15s'
-                        }}
-                      >
-                        <td style={{ padding: '12px 16px 12px 0', fontWeight: 600, color: m.color }}>
-                          {m.name}
-                          {i === 4 && <span style={{ marginLeft: 6, fontSize: 8, background: 'var(--verdigris)', color: '#fff', borderRadius: 3, padding: '2px 5px', fontWeight: 700, textTransform: 'uppercase' }}>Best</span>}
-                        </td>
-                        <td style={{ padding: '12px 16px 12px 0', color: 'var(--ink)' }}>{m.precision}%</td>
-                        <td style={{ padding: '12px 16px 12px 0', color: 'var(--ink)' }}>{m.recall}%</td>
-                        <td style={{ padding: '12px 16px 12px 0', color: 'var(--ink)', fontWeight: 700 }}>{m.map}%</td>
-                        <td style={{ padding: '12px 16px 12px 0', color: 'var(--ink-soft)' }}>{m.params}</td>
-                        <td style={{ padding: '12px 16px 12px 0', color: m.latency < 25 ? 'var(--verdigris)' : m.latency > 100 ? 'var(--seal)' : 'var(--gold)' }}>{m.latency}ms</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Visual grouped bar chart for Precision / Recall / mAP */}
-            <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
-              <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: '18px', letterSpacing: '0.1em' }}>Visual metric comparison</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {BENCHMARK_MODELS.map((m) => (
-                  <div key={m.name}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-                      <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, color: m.color, width: 170, flexShrink: 0, fontWeight: 600 }}>{m.name}</span>
-                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        {[{label:'P', val:m.precision,color:'var(--oxford)'},{label:'R',val:m.recall,color:'var(--gold)'},{label:'mAP',val:m.map,color:'var(--verdigris)'}].map(({label,val,color}) => (
-                          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 8, color: 'var(--ink-soft)', width: 26, textAlign: 'right' }}>{label}</span>
-                            <div style={{ flex: 1, background: 'rgba(255,255,255,0.05)', borderRadius: 3, overflow: 'hidden', height: 10 }}>
-                              <div style={{ width: `${val}%`, height: '100%', background: color, borderRadius: 3, transition: 'width .6s ease' }} />
-                            </div>
-                            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: 'var(--ink-soft)', width: 38, textAlign: 'right' }}>{val}%</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ display: 'flex', gap: 20, marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--line)' }}>
-                {[{label:'Precision',color:'var(--oxford)'},{label:'Recall',color:'var(--gold)'},{label:'mAP@0.5',color:'var(--verdigris)'}].map(l => (
-                  <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: 'var(--ink-soft)' }}>
-                    <span style={{ width: 10, height: 10, borderRadius: 2, background: l.color, display: 'inline-block' }} />{l.label}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
         ) : currentView === "questions" ? (
           /* Questions Management Tab */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -1296,146 +1205,100 @@ export default function App() {
               <span className="meta">{questionsList.length} questions stored</span>
             </div>
 
-            {/* Exam selection and creation block */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
-              {/* Select active exam cohort */}
-              <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div>
-                  <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '14px', letterSpacing: '0.1em' }}>
-                    Select Active Exam Cohort
+            {questionActionStatus && (
+              <div style={{
+                background: questionActionStatus.startsWith("Error") ? 'rgba(140, 47, 57, 0.15)' : 'rgba(75, 122, 107, 0.15)',
+                color: questionActionStatus.startsWith("Error") ? '#FF6B6B' : 'var(--verdigris)',
+                border: questionActionStatus.startsWith("Error") ? '1px solid rgba(255, 107, 107, 0.3)' : '1px solid var(--verdigris)',
+                borderRadius: '6px', padding: '12px 18px', fontSize: '13px',
+                fontFamily: "'IBM Plex Mono', monospace"
+              }}>
+                {questionActionStatus}
+              </div>
+            )}
+
+            {examsList.length === 0 || selectedExamId === "__new__" ? (
+              <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '36px', maxWidth: '640px', margin: '20px auto', width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                  <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '14px', textTransform: 'uppercase', color: 'var(--gold)', margin: 0, letterSpacing: '0.1em' }}>
+                    {examsList.length === 0 ? "Create Your First Exam Cohort" : "Create New Exam Cohort"}
                   </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <select
-                      value={selectedExamId}
-                      onChange={(e) => setSelectedExamId(e.target.value)}
-                      style={{
-                        width: '100%', background: 'var(--midnight)', border: '1px solid var(--line)',
-                        color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '13px',
-                        padding: '10px 14px', borderRadius: '6px', outline: 'none', cursor: 'pointer'
-                      }}
+                  {examsList.length > 0 && (
+                    <button
+                      onClick={() => setSelectedExamId(examsList[0]?.id || "default")}
+                      style={{ background: 'none', border: '1px solid var(--line)', borderRadius: '4px', color: 'var(--ink-soft)', padding: '4px 10px', fontSize: '11px', cursor: 'pointer', fontFamily: "'IBM Plex Mono', monospace" }}
                     >
-                      {examsList.map((exam) => (
-                        <option key={exam.id} value={exam.id}>
-                          {exam.title} ({exam.id})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      ← Back to Exams
+                    </button>
+                  )}
                 </div>
-                {(() => {
-                  const activeExamDetails = examsList.find(e => e.id === selectedExamId);
-                  return (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '14px', borderTop: '1px solid var(--line)', paddingTop: '14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{
-                          display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%',
-                          background: activeExamDetails?.active ? 'var(--verdigris)' : 'var(--seal)'
-                        }}></span>
-                        <span style={{ fontSize: '11px', fontFamily: "'IBM Plex Mono', monospace", color: 'var(--ink-soft)' }}>
-                          Status: {activeExamDetails?.active ? "Active" : "Inactive"}
-                        </span>
-                      </div>
-                      <button
-                        onClick={toggleActiveExam}
-                        style={{
-                          background: activeExamDetails?.active ? 'rgba(140, 47, 57, 0.15)' : 'rgba(75, 122, 107, 0.15)',
-                          color: activeExamDetails?.active ? 'var(--seal)' : 'var(--verdigris)',
-                          border: 'none', borderRadius: '4px',
-                          padding: '6px 12px', fontSize: '11px', fontWeight: 600, cursor: 'pointer',
-                          fontFamily: "'IBM Plex Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.05em'
-                        }}
-                      >
-                        {activeExamDetails?.active ? "Deactivate" : "Activate"}
-                      </button>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* Exam Cohort Statistics */}
-              <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
-                <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '14px', letterSpacing: '0.1em' }}>
-                  Exam Cohort Statistics
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 16px' }}>
+                <p style={{ fontSize: '13px', color: 'var(--ink-soft)', lineHeight: 1.6, marginBottom: '24px' }}>
+                  {examsList.length === 0
+                    ? "No exams exist yet in the system. Fill out the details below to create your first exam cohort, then you can manage questions and authorized students."
+                    : "Enter the details for your new exam cohort below. Once created, it will become active and available for student registration and question setup."
+                  }
+                </p>
+                <form onSubmit={submitExam} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: 'var(--ink-soft)', letterSpacing: '0.05em', marginBottom: 2 }}>Submissions</label>
-                    <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--ink)', fontFamily: "'IBM Plex Mono', monospace" }}>{examStats?.total_completed ?? 0}</span>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: 'var(--ink-soft)', letterSpacing: '0.05em', marginBottom: 2 }}>Top Score</label>
-                    <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--verdigris)', fontFamily: "'IBM Plex Mono', monospace" }}>{examStats?.top_score ?? "N/A"}</span>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: 'var(--ink-soft)', letterSpacing: '0.05em', marginBottom: 2 }}>Average</label>
-                    <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--ink)', fontFamily: "'IBM Plex Mono', monospace" }}>{examStats?.average_percentage ? `${examStats.average_percentage}%` : "N/A"}</span>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: 'var(--ink-soft)', letterSpacing: '0.05em', marginBottom: 2 }}>Pass Rate</label>
-                    <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--gold)', fontFamily: "'IBM Plex Mono', monospace" }}>{examStats?.pass_rate ? `${examStats.pass_rate}%` : "N/A"}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Create new exam cohort form */}
-              <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
-                <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--verdigris)', marginBottom: '14px', letterSpacing: '0.1em' }}>
-                  Create New Exam Cohort
-                </h3>
-                <form onSubmit={submitExam} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <label style={{ display: 'block', fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', textTransform: 'uppercase', color: 'var(--gold)', letterSpacing: '0.1em', marginBottom: 6 }}>Exam ID (Unique Identifier)</label>
                     <input
                       type="text"
                       required
-                      placeholder="Exam ID (e.g., exam_ai)"
+                      placeholder="e.g., exam_ai"
                       value={newExam.id}
                       onChange={(e) => setNewExam((prev) => ({ ...prev, id: e.target.value }))}
                       style={{
-                        background: 'var(--midnight)', border: '1px solid var(--line)',
-                        color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '12px',
-                        padding: '8px 12px', borderRadius: '4px', outline: 'none'
-                      }}
-                    />
-                    <input
-                      type="text"
-                      required
-                      placeholder="Exam Title (e.g., AI Fundamentals)"
-                      value={newExam.title}
-                      onChange={(e) => setNewExam((prev) => ({ ...prev, title: e.target.value }))}
-                      style={{
-                        background: 'var(--midnight)', border: '1px solid var(--line)',
-                        color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '12px',
-                        padding: '8px 12px', borderRadius: '4px', outline: 'none'
+                        width: '100%', background: 'var(--midnight)', border: '1px solid var(--line)',
+                        color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '13px',
+                        padding: '10px 14px', borderRadius: '6px', outline: 'none'
                       }}
                     />
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Description (Optional)"
-                    value={newExam.description}
-                    onChange={(e) => setNewExam((prev) => ({ ...prev, description: e.target.value }))}
-                    style={{
-                      background: 'var(--midnight)', border: '1px solid var(--line)',
-                      color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '12px',
-                      padding: '8px 12px', borderRadius: '4px', outline: 'none'
-                    }}
-                  />
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', textTransform: 'uppercase', color: 'var(--gold)', letterSpacing: '0.1em', marginBottom: 6 }}>Exam Title</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g., AI Fundamentals Exam"
+                      value={newExam.title}
+                      onChange={(e) => setNewExam((prev) => ({ ...prev, title: e.target.value }))}
+                      style={{
+                        width: '100%', background: 'var(--midnight)', border: '1px solid var(--line)',
+                        color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '13px',
+                        padding: '10px 14px', borderRadius: '6px', outline: 'none'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', textTransform: 'uppercase', color: 'var(--ink-soft)', letterSpacing: '0.1em', marginBottom: 6 }}>Description (Optional)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., General Artificial Intelligence Proctoring Cohort"
+                      value={newExam.description}
+                      onChange={(e) => setNewExam((prev) => ({ ...prev, description: e.target.value }))}
+                      style={{
+                        width: '100%', background: 'var(--midnight)', border: '1px solid var(--line)',
+                        color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '13px',
+                        padding: '10px 14px', borderRadius: '6px', outline: 'none'
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
                     <button
                       type="submit"
                       disabled={creatingExam}
                       style={{
                         background: 'var(--oxford)', color: 'var(--midnight)',
-                        border: 'none', borderRadius: '4px', padding: '8px 20px',
-                        fontFamily: "'Inter', sans-serif", fontSize: '11px', fontWeight: 600,
+                        border: 'none', borderRadius: '6px', padding: '12px 28px',
+                        fontFamily: "'Inter', sans-serif", fontSize: '13px', fontWeight: 600,
                         cursor: creatingExam ? 'not-allowed' : 'pointer', opacity: creatingExam ? 0.6 : 1
                       }}
                     >
-                      {creatingExam ? 'Creating…' : 'Create Exam'}
+                      {creatingExam ? 'Creating Exam…' : 'Create Exam Cohort'}
                     </button>
                     {examCreateStatus && (
                       <span style={{
-                        fontSize: '11px',
+                        fontSize: '12px',
                         fontFamily: "'IBM Plex Mono', monospace",
                         color: examCreateStatus.startsWith("Success") ? 'var(--verdigris)' : 'var(--seal)'
                       }}>
@@ -1445,172 +1308,443 @@ export default function App() {
                   </div>
                 </form>
               </div>
-            </div>
-
-            {/* Create new question form */}
-            <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
-              <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: '18px', letterSpacing: '0.1em' }}>
-                Add a new question
-              </h3>
-              <form onSubmit={submitQuestion} style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxWidth: '680px' }}>
-                <div>
-                  <label style={{ display: 'block', fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', textTransform: 'uppercase', color: 'var(--gold)', letterSpacing: '0.12em', marginBottom: 6 }}>Question text</label>
-                  <textarea
-                    required
-                    rows={3}
-                    value={newQuestion.text}
-                    onChange={(e) => setNewQuestion((prev) => ({ ...prev, text: e.target.value }))}
-                    placeholder="Enter the full question text…"
-                    style={{
-                      width: '100%', background: 'var(--midnight)', border: '1px solid var(--line)',
-                      color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '13px',
-                      padding: '10px 14px', borderRadius: '6px', outline: 'none', resize: 'vertical'
-                    }}
-                  />
-                </div>
-                {newQuestion.options.map((opt, i) => (
-                  <div key={i}>
-                    <label style={{ display: 'block', fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', textTransform: 'uppercase', color: 'var(--ink-soft)', letterSpacing: '0.1em', marginBottom: 6 }}>Option {String.fromCharCode(65 + i)}</label>
-                    <input
-                      type="text"
-                      required
-                      value={opt}
-                      onChange={(e) => {
-                        const updated = [...newQuestion.options];
-                        updated[i] = e.target.value;
-                        setNewQuestion((prev) => ({ ...prev, options: updated }));
-                      }}
-                      placeholder={`Option ${String.fromCharCode(65 + i)}…`}
-                      style={{
-                        width: '100%', background: 'var(--midnight)', border: '1px solid var(--line)',
-                        color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '13px',
-                        padding: '10px 14px', borderRadius: '6px', outline: 'none'
-                      }}
-                    />
-                  </div>
-                ))}
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <label style={{ display: 'block', fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', textTransform: 'uppercase', color: 'var(--verdigris)', letterSpacing: '0.1em' }}>Correct Answer Option</label>
-                  <select
-                    value={newQuestion.correct_option_idx}
-                    onChange={(e) => setNewQuestion((prev) => ({ ...prev, correct_option_idx: parseInt(e.target.value) }))}
-                    style={{
-                      background: 'var(--midnight)', border: '1px solid var(--line)',
-                      color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '13px',
-                      padding: '10px 14px', borderRadius: '6px', outline: 'none', cursor: 'pointer'
-                    }}
-                  >
-                    <option value={0}>Option A</option>
-                    <option value={1}>Option B</option>
-                    <option value={2}>Option C</option>
-                    <option value={3}>Option D</option>
-                  </select>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={savingQuestion}
-                  style={{
-                    alignSelf: 'flex-start', background: 'var(--oxford)', color: 'var(--midnight)',
-                    border: 'none', borderRadius: '6px', padding: '10px 28px',
-                    fontFamily: "'Inter', sans-serif", fontSize: '12.5px', fontWeight: 600,
-                    cursor: savingQuestion ? 'not-allowed' : 'pointer', opacity: savingQuestion ? 0.6 : 1,
-                    marginTop: 6
-                  }}
-                >
-                  {savingQuestion ? 'Saving…' : 'Add question'}
-                </button>
-              </form>
-            </div>
-
-            {/* Batch Upload questions card */}
-            <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
-              <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: '8px', letterSpacing: '0.1em' }}>
-                Batch Import Questions (JSON or CSV)
-              </h3>
-              <p style={{ fontSize: '12px', color: 'var(--ink-soft)', margin: '0 0 16px 0', lineHeight: '1.5' }}>
-                Import multiple questions at once. Accepts JSON array format (with fields: <code>text</code>, <code>options</code>, and <code>correct_option_idx</code>) or CSV format (with headers: <code>text</code>, <code>option_0</code>, <code>option_1</code>, <code>option_2</code>, <code>option_3</code>, <code>correct_option_idx</code>).
-              </p>
-              
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <input
-                  type="file"
-                  accept=".csv,.json"
-                  onChange={handleQuestionsFileUpload}
-                  disabled={uploadingQuestions}
-                  id="questions-file-upload"
-                  style={{ display: 'none' }}
-                />
-                <label
-                  htmlFor="questions-file-upload"
-                  style={{
-                    background: 'var(--oxford)', color: 'var(--midnight)',
-                    border: 'none', borderRadius: '6px', padding: '10px 24px',
-                    fontFamily: "'Inter', sans-serif", fontSize: '12.5px', fontWeight: 600,
-                    cursor: uploadingQuestions ? 'not-allowed' : 'pointer', opacity: uploadingQuestions ? 0.6 : 1
-                  }}
-                >
-                  {uploadingQuestions ? 'Uploading Questions…' : 'Select & Upload file'}
-                </label>
-
-                {questionsUploadStatus && (
-                  <span style={{
-                    fontSize: '12px',
-                    fontFamily: "'IBM Plex Mono', monospace",
-                    color: questionsUploadStatus.startsWith("Success") ? 'var(--verdigris)' : 'var(--seal)'
-                  }}>
-                    {questionsUploadStatus}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Existing question list */}
-            <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
-              <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: '18px', letterSpacing: '0.1em' }}>
-                Current question bank — {examsList.find(e => e.id === selectedExamId)?.title || "Default Exam"}
-              </h3>
-              {questionsList.length === 0 ? (
-                <div style={{ padding: '32px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: '13px', fontStyle: 'italic' }}>No questions loaded yet.</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {questionsList.map((q, idx) => (
-                    <div key={q.id} style={{ background: 'var(--midnight)', border: '1px solid var(--line)', borderRadius: '6px', padding: '16px' }}>
-                      <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', alignItems: 'flex-start' }}>
-                        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: 'var(--gold)', border: '1px solid var(--gold)', borderRadius: 3, padding: '2px 6px', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>Q{idx + 1}</span>
-                        <p style={{ margin: 0, fontSize: '13px', color: 'var(--ink)', lineHeight: 1.5 }}>{q.text}</p>
+            ) : (
+              <>
+                {/* Exam Cohorts Directory Deck */}
+                {(() => {
+                  const activeExams = examsList.filter((e) => e.active);
+                  const pastExams = examsList.filter((e) => !e.active);
+                  return (
+                    <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '18px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--gold)', margin: 0, letterSpacing: '0.1em' }}>
+                          Exam Cohorts Directory ({examsList.length} total • {activeExams.length} active • {pastExams.length} past)
+                        </h3>
+                        <span style={{ fontSize: '11px', color: 'var(--ink-soft)', fontFamily: "'IBM Plex Mono', monospace" }}>
+                          Selected: <strong style={{ color: 'var(--verdigris)' }}>{selectedExamId}</strong>
+                        </span>
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                        {q.options.map((opt, oi) => {
-                          const isCorrect = q.correct_option_idx !== undefined ? q.correct_option_idx === oi : false;
-                          return (
-                            <div key={oi} style={{
-                              fontFamily: "'IBM Plex Mono', monospace",
-                              fontSize: '10.5px',
-                              color: isCorrect ? 'var(--verdigris)' : 'var(--ink-soft)',
-                              background: isCorrect ? 'rgba(46, 196, 182, 0.05)' : 'rgba(255,255,255,0.03)',
-                              border: isCorrect ? '1px solid var(--verdigris)' : '1px solid var(--line)',
-                              borderRadius: 4,
-                              padding: '6px 10px'
-                            }}>
-                              <strong style={{ color: isCorrect ? 'var(--verdigris)' : 'var(--oxford)' }}>{String.fromCharCode(65 + oi)}.</strong> {opt} {isCorrect && '✓'}
-                            </div>
-                          );
-                        })}
+
+                      {/* Active Exams */}
+                      <div>
+                        <span style={{ display: 'block', fontSize: '9px', fontFamily: "'IBM Plex Mono', monospace", textTransform: 'uppercase', color: 'var(--verdigris)', letterSpacing: '0.1em', marginBottom: '8px' }}>
+                          🟢 Active Exam Cohorts ({activeExams.length})
+                        </span>
+                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                          {activeExams.map((exam) => {
+                            const isSelected = exam.id === selectedExamId;
+                            return (
+                              <button
+                                key={exam.id}
+                                onClick={() => setSelectedExamId(exam.id)}
+                                style={{
+                                  background: isSelected ? 'var(--oxford)' : 'var(--midnight)',
+                                  color: isSelected ? 'var(--midnight)' : 'var(--ink)',
+                                  border: isSelected ? '1px solid var(--oxford)' : '1px solid var(--line)',
+                                  borderRadius: '6px', padding: '8px 14px', fontSize: '12px',
+                                  fontWeight: isSelected ? 700 : 500, cursor: 'pointer',
+                                  display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--verdigris)' }}></span>
+                                <span>{exam.title}</span>
+                                <span style={{ opacity: 0.6, fontSize: '10px', fontFamily: "'IBM Plex Mono', monospace" }}>({exam.id})</span>
+                              </button>
+                            );
+                          })}
+                          {activeExams.length === 0 && (
+                            <span style={{ fontSize: '12px', color: 'var(--ink-soft)', fontStyle: 'italic' }}>No active exam cohorts.</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Past / Archived Exams */}
+                      {pastExams.length > 0 && (
+                        <div style={{ borderTop: '1px dashed var(--line)', paddingTop: '10px' }}>
+                          <span style={{ display: 'block', fontSize: '9px', fontFamily: "'IBM Plex Mono', monospace", textTransform: 'uppercase', color: 'var(--seal)', letterSpacing: '0.1em', marginBottom: '8px' }}>
+                            🔴 Past / Archived Exam Cohorts ({pastExams.length})
+                          </span>
+                          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                            {pastExams.map((exam) => {
+                              const isSelected = exam.id === selectedExamId;
+                              return (
+                                <div key={exam.id} style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                  <button
+                                    onClick={() => setSelectedExamId(exam.id)}
+                                    style={{
+                                      background: isSelected ? 'rgba(140, 47, 57, 0.3)' : 'var(--midnight)',
+                                      color: isSelected ? '#FF6B6B' : 'var(--ink-soft)',
+                                      border: isSelected ? '1px solid rgba(255, 107, 107, 0.4)' : '1px solid var(--line)',
+                                      borderRadius: '6px 0 0 6px', padding: '8px 12px', fontSize: '12px',
+                                      fontWeight: isSelected ? 700 : 500, cursor: 'pointer',
+                                      display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.15s ease'
+                                    }}
+                                  >
+                                    <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'var(--seal)' }}></span>
+                                    <span>{exam.title}</span>
+                                    <span style={{ opacity: 0.6, fontSize: '10px', fontFamily: "'IBM Plex Mono', monospace" }}>({exam.id})</span>
+                                  </button>
+                                  <button
+                                    onClick={() => deleteExamCohort(exam.id)}
+                                    title={`Delete past exam '${exam.id}'`}
+                                    style={{
+                                      background: 'rgba(140, 47, 57, 0.2)', color: '#FF6B6B',
+                                      border: '1px solid var(--line)', borderLeft: 'none',
+                                      borderRadius: '0 6px 6px 0', padding: '8px 10px', fontSize: '11px',
+                                      cursor: 'pointer', fontFamily: "'IBM Plex Mono', monospace"
+                                    }}
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Create New Exam Action */}
+                      <div style={{ borderTop: '1px dashed var(--line)', paddingTop: '10px', display: 'flex', justifyContent: 'flex-start' }}>
+                        <button
+                          onClick={() => setSelectedExamId("__new__")}
+                          style={{
+                            background: 'rgba(46, 196, 182, 0.15)', color: 'var(--verdigris)',
+                            border: '1px dashed var(--verdigris)', borderRadius: '6px',
+                            padding: '8px 16px', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+                            display: 'flex', alignItems: 'center', gap: '6px',
+                            fontFamily: "'IBM Plex Mono', monospace", transition: 'all 0.15s ease'
+                          }}
+                        >
+                          + Create New Exam Cohort
+                        </button>
                       </div>
                     </div>
-                  ))}
+                  );
+                })()}
+
+                {/* Exam selection and primary actions block */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+                  {/* Select active exam cohort */}
+                  <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div>
+                      <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '14px', letterSpacing: '0.1em' }}>
+                        Select Active / Past Exam Cohort
+                      </h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <select
+                          value={selectedExamId}
+                          onChange={(e) => setSelectedExamId(e.target.value)}
+                          style={{
+                            width: '100%', background: 'var(--midnight)', border: '1px solid var(--line)',
+                            color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '13px',
+                            padding: '10px 14px', borderRadius: '6px', outline: 'none', cursor: 'pointer'
+                          }}
+                        >
+                          <optgroup label="Active Exam Cohorts">
+                            {examsList.filter(e => e.active).map((exam) => (
+                              <option key={exam.id} value={exam.id}>
+                                🟢 {exam.title} ({exam.id})
+                              </option>
+                            ))}
+                          </optgroup>
+                          {examsList.some(e => !e.active) && (
+                            <optgroup label="Past / Archived Exam Cohorts">
+                              {examsList.filter(e => !e.active).map((exam) => (
+                                <option key={exam.id} value={exam.id}>
+                                  🔴 [Past] {exam.title} ({exam.id})
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          <option value="__new__">+ Create New Exam Cohort...</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      {(() => {
+                        const activeExamDetails = examsList.find(e => e.id === selectedExamId);
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '14px', borderTop: '1px solid var(--line)', paddingTop: '14px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{
+                                display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%',
+                                background: activeExamDetails?.active ? 'var(--verdigris)' : 'var(--seal)'
+                              }}></span>
+                              <span style={{ fontSize: '11px', fontFamily: "'IBM Plex Mono', monospace", color: 'var(--ink-soft)' }}>
+                                Status: {activeExamDetails?.active ? "Active" : "Inactive"}
+                              </span>
+                            </div>
+                            <button
+                              onClick={toggleActiveExam}
+                              style={{
+                                background: activeExamDetails?.active ? 'rgba(140, 47, 57, 0.15)' : 'rgba(75, 122, 107, 0.15)',
+                                color: activeExamDetails?.active ? 'var(--seal)' : 'var(--verdigris)',
+                                border: 'none', borderRadius: '4px',
+                                padding: '6px 12px', fontSize: '11px', fontWeight: 600, cursor: 'pointer',
+                                fontFamily: "'IBM Plex Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.05em'
+                              }}
+                            >
+                              {activeExamDetails?.active ? "Deactivate" : "Activate"}
+                            </button>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Cohort Delete Actions */}
+                      <div style={{ display: 'flex', gap: '10px', marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--line)' }}>
+                        {questionsList.length > 0 && (
+                          <button
+                            onClick={() => clearAllQuestionsForExam(selectedExamId)}
+                            style={{
+                              flex: 1, background: 'rgba(140, 47, 57, 0.15)', color: '#FF6B6B',
+                              border: '1px solid rgba(255, 107, 107, 0.3)', borderRadius: '4px',
+                              padding: '8px 12px', fontSize: '11px', fontWeight: 600, cursor: 'pointer',
+                              fontFamily: "'IBM Plex Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.05em'
+                            }}
+                          >
+                            Delete Question Set ({questionsList.length})
+                          </button>
+                        )}
+                        {selectedExamId && (
+                          <button
+                            onClick={() => deleteExamCohort(selectedExamId)}
+                            style={{
+                              background: 'rgba(140, 47, 57, 0.3)', color: '#FF4D4D',
+                              border: '1px solid rgba(255, 77, 77, 0.5)', borderRadius: '4px',
+                              padding: '8px 12px', fontSize: '11px', fontWeight: 600, cursor: 'pointer',
+                              fontFamily: "'IBM Plex Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.05em'
+                            }}
+                          >
+                            Delete Entire Exam
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Exam Cohort Statistics */}
+                  <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
+                    <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '14px', letterSpacing: '0.1em' }}>
+                      Exam Cohort Statistics
+                    </h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 16px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: 'var(--ink-soft)', letterSpacing: '0.05em', marginBottom: 2 }}>Submissions</label>
+                        <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--ink)', fontFamily: "'IBM Plex Mono', monospace" }}>{examStats?.total_completed ?? 0}</span>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: 'var(--ink-soft)', letterSpacing: '0.05em', marginBottom: 2 }}>Top Score</label>
+                        <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--verdigris)', fontFamily: "'IBM Plex Mono', monospace" }}>{examStats?.top_score ?? "N/A"}</span>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: 'var(--ink-soft)', letterSpacing: '0.05em', marginBottom: 2 }}>Average</label>
+                        <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--ink)', fontFamily: "'IBM Plex Mono', monospace" }}>{examStats?.average_percentage ? `${examStats.average_percentage}%` : "N/A"}</span>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: 'var(--ink-soft)', letterSpacing: '0.05em', marginBottom: 2 }}>Pass Rate</label>
+                        <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--gold)', fontFamily: "'IBM Plex Mono', monospace" }}>{examStats?.pass_rate ? `${examStats.pass_rate}%` : "N/A"}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
+
+                {/* Current Question Bank for Selected Exam */}
+                <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
+                    <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', margin: 0, letterSpacing: '0.1em' }}>
+                      Current question bank — {examsList.find(e => e.id === selectedExamId)?.title || selectedExamId} ({questionsList.length} questions)
+                    </h3>
+                    {questionsList.length > 0 && (
+                      <button
+                        onClick={() => clearAllQuestionsForExam(selectedExamId)}
+                        style={{
+                          background: 'rgba(140, 47, 57, 0.15)', color: 'var(--seal)',
+                          border: '1px solid rgba(140, 47, 57, 0.3)', borderRadius: '4px',
+                          padding: '6px 12px', fontSize: '11px', fontWeight: 600, cursor: 'pointer',
+                          fontFamily: "'IBM Plex Mono', monospace", textTransform: 'uppercase', letterSpacing: '0.05em'
+                        }}
+                      >
+                        Delete All Questions
+                      </button>
+                    )}
+                  </div>
+
+                  {questionsList.length === 0 ? (
+                    <div style={{ padding: '32px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: '13px', fontStyle: 'italic' }}>No questions loaded yet for this exam cohort. Use the sections below to add questions or import a CSV/JSON file.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {questionsList.map((q, idx) => (
+                        <div key={q.id} style={{ background: 'var(--midnight)', border: '1px solid var(--line)', borderRadius: '6px', padding: '16px' }}>
+                          <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 9, color: 'var(--gold)', border: '1px solid var(--gold)', borderRadius: 3, padding: '2px 6px', fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>Q{idx + 1}</span>
+                              <p style={{ margin: 0, fontSize: '13px', color: 'var(--ink)', lineHeight: 1.5 }}>{q.text}</p>
+                            </div>
+                            <button
+                              onClick={() => deleteSingleQuestion(q.id)}
+                              title="Delete question"
+                              style={{
+                                background: 'rgba(140, 47, 57, 0.2)', color: '#FF6B6B',
+                                border: '1px solid rgba(255, 107, 107, 0.3)', borderRadius: '4px',
+                                padding: '4px 10px', fontSize: '11px', fontWeight: 600, cursor: 'pointer',
+                                fontFamily: "'IBM Plex Mono', monospace", flexShrink: 0
+                              }}
+                            >
+                              Delete Question
+                            </button>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                            {q.options.map((opt, oi) => {
+                              const isCorrect = q.correct_option_idx !== undefined ? q.correct_option_idx === oi : false;
+                              return (
+                                <div key={oi} style={{
+                                  fontFamily: "'IBM Plex Mono', monospace",
+                                  fontSize: '10.5px',
+                                  color: isCorrect ? 'var(--verdigris)' : 'var(--ink-soft)',
+                                  background: isCorrect ? 'rgba(46, 196, 182, 0.05)' : 'rgba(255,255,255,0.03)',
+                                  border: isCorrect ? '1px solid var(--verdigris)' : '1px solid var(--line)',
+                                  borderRadius: 4,
+                                  padding: '6px 10px'
+                                }}>
+                                  <strong style={{ color: isCorrect ? 'var(--verdigris)' : 'var(--oxford)' }}>{String.fromCharCode(65 + oi)}.</strong> {opt} {isCorrect && '✓'}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Batch Upload questions card */}
+                <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
+                  <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: '8px', letterSpacing: '0.1em' }}>
+                    Batch Import Questions (JSON or CSV)
+                  </h3>
+                  <p style={{ fontSize: '12px', color: 'var(--ink-soft)', margin: '0 0 16px 0', lineHeight: '1.5' }}>
+                    Import questions into <strong>{examsList.find(e => e.id === selectedExamId)?.title || selectedExamId}</strong> (or upload a file to automatically create a new exam cohort).
+                  </p>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <input
+                      type="file"
+                      accept=".csv,.json"
+                      onChange={handleQuestionsFileUpload}
+                      disabled={uploadingQuestions}
+                      id="questions-file-upload"
+                      style={{ display: 'none' }}
+                    />
+                    <label
+                      htmlFor="questions-file-upload"
+                      style={{
+                        background: 'var(--oxford)', color: 'var(--midnight)',
+                        border: 'none', borderRadius: '6px', padding: '10px 24px',
+                        fontFamily: "'Inter', sans-serif", fontSize: '12.5px', fontWeight: 600,
+                        cursor: uploadingQuestions ? 'not-allowed' : 'pointer', opacity: uploadingQuestions ? 0.6 : 1
+                      }}
+                    >
+                      {uploadingQuestions ? 'Uploading Questions…' : 'Select & Upload file'}
+                    </label>
+
+                    {questionsUploadStatus && (
+                      <span style={{
+                        fontSize: '12px',
+                        fontFamily: "'IBM Plex Mono', monospace",
+                        color: questionsUploadStatus.startsWith("Success") ? 'var(--verdigris)' : 'var(--seal)'
+                      }}>
+                        {questionsUploadStatus}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Add new question form for selected exam */}
+                <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
+                  <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: '18px', letterSpacing: '0.1em' }}>
+                    Add a new question to {examsList.find(e => e.id === selectedExamId)?.title || selectedExamId}
+                  </h3>
+                  <form onSubmit={submitQuestion} style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxWidth: '680px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', textTransform: 'uppercase', color: 'var(--gold)', letterSpacing: '0.12em', marginBottom: 6 }}>Question text</label>
+                      <textarea
+                        required
+                        rows={3}
+                        value={newQuestion.text}
+                        onChange={(e) => setNewQuestion((prev) => ({ ...prev, text: e.target.value }))}
+                        placeholder="Enter the full question text…"
+                        style={{
+                          width: '100%', background: 'var(--midnight)', border: '1px solid var(--line)',
+                          color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '13px',
+                          padding: '10px 14px', borderRadius: '6px', outline: 'none', resize: 'vertical'
+                        }}
+                      />
+                    </div>
+                    {newQuestion.options.map((opt, i) => (
+                      <div key={i}>
+                        <label style={{ display: 'block', fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', textTransform: 'uppercase', color: 'var(--ink-soft)', letterSpacing: '0.1em', marginBottom: 6 }}>Option {String.fromCharCode(65 + i)}</label>
+                        <input
+                          type="text"
+                          required
+                          value={opt}
+                          onChange={(e) => {
+                            const updated = [...newQuestion.options];
+                            updated[i] = e.target.value;
+                            setNewQuestion((prev) => ({ ...prev, options: updated }));
+                          }}
+                          placeholder={`Option ${String.fromCharCode(65 + i)}…`}
+                          style={{
+                            width: '100%', background: 'var(--midnight)', border: '1px solid var(--line)',
+                            color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '13px',
+                            padding: '10px 14px', borderRadius: '6px', outline: 'none'
+                          }}
+                        />
+                      </div>
+                    ))}
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <label style={{ display: 'block', fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', textTransform: 'uppercase', color: 'var(--verdigris)', letterSpacing: '0.1em' }}>Correct Answer Option</label>
+                      <select
+                        value={newQuestion.correct_option_idx}
+                        onChange={(e) => setNewQuestion((prev) => ({ ...prev, correct_option_idx: parseInt(e.target.value) }))}
+                        style={{
+                          background: 'var(--midnight)', border: '1px solid var(--line)',
+                          color: 'var(--ink)', fontFamily: "'Inter', sans-serif", fontSize: '13px',
+                          padding: '10px 14px', borderRadius: '6px', outline: 'none', cursor: 'pointer'
+                        }}
+                      >
+                        <option value={0}>Option A</option>
+                        <option value={1}>Option B</option>
+                        <option value={2}>Option C</option>
+                        <option value={3}>Option D</option>
+                      </select>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={savingQuestion}
+                      style={{
+                        alignSelf: 'flex-start', background: 'var(--oxford)', color: 'var(--midnight)',
+                        border: 'none', borderRadius: '6px', padding: '10px 28px',
+                        fontFamily: "'Inter', sans-serif", fontSize: '12.5px', fontWeight: 600,
+                        cursor: savingQuestion ? 'not-allowed' : 'pointer', opacity: savingQuestion ? 0.6 : 1,
+                        marginTop: 6
+                      }}
+                    >
+                      {savingQuestion ? 'Saving…' : 'Add question'}
+                    </button>
+                  </form>
+                </div>
+              </>
+            )}
           </div>
         ) : currentView === "students" ? (
           /* Manage Students Tab */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div className="section-title">
               <h2>Student directory</h2>
-              <span className="meta">{studentsList.length} authorized students</span>
+              <span className="meta">{studentsList.length} authorized students across {new Set(studentsList.map(s => s.class_group)).size} class groups</span>
             </div>
 
             {/* CSV Batch Upload */}
@@ -1619,7 +1753,7 @@ export default function App() {
                 Batch Import Student Directory
               </h3>
               <p style={{ fontSize: '12px', color: 'var(--ink-soft)', margin: '0 0 16px 0', lineHeight: '1.5' }}>
-                Upload a CSV file containing your cohort directory. Expected headers: <code>student_id</code>, <code>student_name</code>, <code>passcode</code>.
+                Upload a CSV file containing your class. Required headers: <code>student_id</code>, <code>student_name</code>, <code>passcode</code>. Optional: <code>class_group</code> (e.g. <code>CS-2026-A</code>).
               </p>
               
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -1656,131 +1790,363 @@ export default function App() {
               </div>
             </div>
 
-            {/* Directory List Table */}
-            <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', overflow: 'hidden' }}>
-              <h3 style={{ padding: '20px 24px 8px 24px', fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', letterSpacing: '0.1em' }}>
-                Authorized Student Directory
-              </h3>
-              {studentsList.length === 0 ? (
-                <div style={{ padding: '48px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: '13px', fontStyle: 'italic' }}>
-                  No students in directory. Upload a CSV file above to authorize logins.
-                </div>
-              ) : (
-                <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left', fontFamily: "'IBM Plex Mono', monospace" }}>
-                    <thead>
-                      <tr style={{ background: 'var(--midnight)', borderBottom: '1px solid var(--line)', color: 'var(--ink-soft)' }}>
-                        <th style={{ padding: '12px 24px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Registration ID</th>
-                        <th style={{ padding: '12px 24px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Full Name</th>
-                        <th style={{ padding: '12px 24px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Access Passcode</th>
-                      </tr>
-                    </thead>
-                    <tbody style={{ color: 'var(--ink)' }}>
-                      {studentsList.map((student) => (
-                        <tr key={student.student_id} style={{ borderBottom: '1px solid var(--line)' }}>
-                          <td style={{ padding: '12px 24px', fontWeight: 600, color: 'var(--oxford)' }}>{student.student_id}</td>
-                          <td style={{ padding: '12px 24px', fontFamily: "'Inter', sans-serif" }}>{student.student_name}</td>
-                          <td style={{ padding: '12px 24px' }}><code>{student.passcode}</code></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            {/* Grouped Class Directory */}
+            {studentsList.length === 0 ? (
+              <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '48px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: '13px', fontStyle: 'italic' }}>
+                No students in directory. Upload a CSV file above to authorize logins.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {(() => {
+                  // Group students by class_group
+                  const groups: Record<string, typeof studentsList> = {};
+                  for (const s of studentsList) {
+                    const g = s.class_group || 'Ungrouped';
+                    if (!groups[g]) groups[g] = [];
+                    groups[g].push(s);
+                  }
+                  return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b)).map(([groupName, members]) => (
+                    <div key={groupName} style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', overflow: 'hidden' }}>
+                      {/* Group header */}
+                      <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '14px 20px', background: 'var(--midnight)', borderBottom: '1px solid var(--line)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{
+                            fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', fontWeight: 700,
+                            textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--gold)'
+                          }}>📁 {groupName}</span>
+                          <span style={{
+                            background: 'rgba(189, 147, 64, 0.12)', color: 'var(--gold)',
+                            border: '1px solid rgba(189, 147, 64, 0.25)', borderRadius: '10px',
+                            padding: '2px 10px', fontSize: '10px', fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600
+                          }}>{members.length} students</span>
+                        </div>
+                        <button
+                          onClick={async () => {
+                            if (!window.confirm(`Delete all ${members.length} students in class "${groupName}"? This cannot be undone.`)) return;
+                            try {
+                              const res = await fetch(`http://localhost:8000/students/group/${encodeURIComponent(groupName)}`, { method: 'DELETE' });
+                              if (res.ok) {
+                                setStudentsList(prev => prev.filter(s => s.class_group !== groupName));
+                                setStudentsUploadStatus(`Deleted class group "${groupName}"`);
+                              }
+                            } catch { setStudentsUploadStatus('Error: Failed to delete group'); }
+                          }}
+                          style={{
+                            background: 'rgba(140, 47, 57, 0.15)', color: 'var(--seal)',
+                            border: '1px solid rgba(140, 47, 57, 0.3)', borderRadius: '4px',
+                            padding: '5px 12px', fontSize: '10.5px', fontWeight: 600,
+                            cursor: 'pointer', fontFamily: "'IBM Plex Mono', monospace"
+                          }}
+                        >
+                          🗑 Delete Group
+                        </button>
+                      </div>
+
+                      {/* Students table within group */}
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left', fontFamily: "'IBM Plex Mono', monospace" }}>
+                          <thead>
+                            <tr style={{ background: 'rgba(255,255,255,0.025)', borderBottom: '1px solid var(--line)', color: 'var(--ink-soft)' }}>
+                              <th style={{ padding: '9px 20px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Registration ID</th>
+                              <th style={{ padding: '9px 20px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Full Name</th>
+                              <th style={{ padding: '9px 20px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Access Passcode</th>
+                              <th style={{ padding: '9px 20px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody style={{ color: 'var(--ink)' }}>
+                            {members.map((student) => (
+                              <tr key={student.student_id} style={{ borderBottom: '1px solid var(--line)' }}>
+                                <td style={{ padding: '10px 20px', fontWeight: 600, color: 'var(--oxford)' }}>{student.student_id}</td>
+                                <td style={{ padding: '10px 20px', fontFamily: "'Inter', sans-serif" }}>{student.student_name}</td>
+                                <td style={{ padding: '10px 20px' }}><code>{student.passcode}</code></td>
+                                <td style={{ padding: '10px 20px' }}>
+                                  <button
+                                    onClick={async () => {
+                                      if (!window.confirm(`Remove student "${student.student_name}" (${student.student_id})?`)) return;
+                                      try {
+                                        const res = await fetch(`http://localhost:8000/students/${encodeURIComponent(student.student_id)}`, { method: 'DELETE' });
+                                        if (res.ok) {
+                                          setStudentsList(prev => prev.filter(s => s.student_id !== student.student_id));
+                                        }
+                                      } catch { setStudentsUploadStatus('Error: Failed to delete student'); }
+                                    }}
+                                    style={{
+                                      background: 'rgba(140, 47, 57, 0.12)', color: '#FF6B6B',
+                                      border: '1px solid rgba(255, 107, 107, 0.25)', borderRadius: '4px',
+                                      padding: '4px 10px', fontSize: '10.5px', fontWeight: 600,
+                                      cursor: 'pointer', fontFamily: "'IBM Plex Mono', monospace"
+                                    }}
+                                  >
+                                    Remove
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+            )}
           </div>
-        ) : (
-          /* Session Reports Tab — margin-column layout */
+        ) : currentView === "reports" ? (
+          /* Session Reports Tab — Unique Student Directory + Detailed Ledger Inspector */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div className="section-title">
-              <h2>Search proctoring ledger</h2>
-              <span className="meta">Session historical logs</span>
-            </div>
+            {(() => {
+              const uniqueStudentCount = new Set(allSessions.map(s => s.student_id)).size;
+              return (
+                <div className="section-title">
+                  <h2>Proctoring ledger & session reports</h2>
+                  <span className="meta">{uniqueStudentCount} unique students • {allSessions.length} total exam sessions</span>
+                </div>
+              );
+            })()}
 
-            <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
-              <form onSubmit={searchSessions} style={{ display: 'flex', gap: '14px', maxWidth: '480px' }}>
-                <input
-                  type="text"
-                  required
-                  placeholder="Enter student registration ID"
-                  value={reportStudentId}
-                  onChange={(e) => setReportStudentId(e.target.value)}
-                  style={{
-                    flex: 1,
-                    background: 'var(--midnight)',
-                    border: '1px solid var(--line)',
-                    color: 'var(--ink)',
-                    fontFamily: "'IBM Plex Mono', monospace",
-                    fontSize: '13px',
-                    padding: '10px 16px',
-                    borderRadius: '6px',
-                    outline: 'none'
-                  }}
-                />
-                <button
-                  type="submit"
-                  style={{
-                    background: 'var(--oxford)',
-                    color: 'var(--midnight)',
-                    border: 'none',
-                    borderRadius: '6px',
-                    padding: '10px 24px',
-                    fontFamily: "'Inter', sans-serif",
-                    fontSize: '12.5px',
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Search
-                </button>
-              </form>
+            {/* Filter & Search Bar */}
+            <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '20px 24px' }}>
+              <div style={{ display: 'flex', gap: '16px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+                {/* Real-time Search input */}
+                <div style={{ flex: '1 1 320px', maxWidth: '440px', position: 'relative' }}>
+                  <input
+                    type="text"
+                    placeholder="Search by Student ID, Exam ID, or Session ID…"
+                    value={sessionSearchQuery}
+                    onChange={(e) => setSessionSearchQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      background: 'var(--midnight)',
+                      border: '1px solid var(--line)',
+                      color: 'var(--ink)',
+                      fontFamily: "'IBM Plex Mono', monospace",
+                      fontSize: '12.5px',
+                      padding: '10px 36px 10px 16px',
+                      borderRadius: '6px',
+                      outline: 'none'
+                    }}
+                  />
+                  {sessionSearchQuery && (
+                    <button
+                      onClick={() => setSessionSearchQuery("")}
+                      style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--ink-soft)', cursor: 'pointer', fontSize: 14 }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
 
-              {searchedSessions.length > 0 && (
-                <div style={{ marginTop: '24px' }}>
-                  <h4 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: '12px', letterSpacing: '0.1em' }}>
-                    Matching cohorts found
-                  </h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
-                    {searchedSessions.map((s) => (
+                {/* Controls: Status Filter Pills + Clear All Button */}
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {(['all', 'in_progress', 'completed'] as const).map((st) => (
                       <button
-                        key={s.session_id}
-                        onClick={() => loadSessionReport(s.session_id)}
+                        key={st}
+                        onClick={() => setSessionStatusFilter(st)}
                         style={{
-                          background: selectedSessionId === s.session_id ? 'var(--oxford)' : 'var(--midnight)',
-                          color: selectedSessionId === s.session_id ? 'var(--midnight)' : 'var(--ink)',
-                          border: '1px solid var(--line)',
+                          background: sessionStatusFilter === st ? 'var(--oxford)' : 'var(--midnight)',
+                          color: sessionStatusFilter === st ? 'var(--midnight)' : 'var(--ink-soft)',
+                          border: sessionStatusFilter === st ? '1px solid var(--oxford)' : '1px solid var(--line)',
                           borderRadius: '6px',
-                          padding: '14px',
-                          textAlign: 'left',
+                          padding: '8px 14px',
+                          fontSize: '11px',
+                          fontWeight: sessionStatusFilter === st ? 700 : 500,
                           cursor: 'pointer',
                           fontFamily: "'IBM Plex Mono', monospace",
-                          fontSize: '12px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '4px'
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          whiteSpace: 'nowrap'
                         }}
                       >
-                        <div style={{ fontWeight: 'bold' }}>{s.student_id}</div>
-                        <div style={{ fontSize: '10px', opacity: 0.8 }}>ID: {s.session_id.substring(0, 12)}…</div>
-                        <div style={{ fontSize: '10px', opacity: 0.8 }}>Flags: {s.alert_count}</div>
-                        {s.score && (
-                          <div style={{ fontSize: '10px', opacity: 0.9, color: selectedSessionId === s.session_id ? 'var(--midnight)' : 'var(--verdigris)', marginTop: 2, fontWeight: 600 }}>
-                            Score: {s.score} ({s.percentage}%)
-                          </div>
-                        )}
+                        {st === 'all' ? `All (${allSessions.length})` : st === 'in_progress' ? `🟢 Live (${allSessions.filter(s => s.status === 'in_progress').length})` : `🏁 Completed (${allSessions.filter(s => s.status === 'completed').length})`}
                       </button>
                     ))}
                   </div>
+
+                  {allSessions.length > 0 && (
+                    <button
+                      onClick={clearAllSessions}
+                      style={{
+                        background: 'rgba(244, 63, 94, 0.1)',
+                        color: 'var(--seal)',
+                        border: '1px solid rgba(244, 63, 94, 0.3)',
+                        borderRadius: '6px',
+                        padding: '8px 14px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        fontFamily: "'IBM Plex Mono', monospace",
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      🗑️ Purge All History
+                    </button>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
+
+            {/* Student Directory Table (Grouped by Student ID) */}
+            {(() => {
+              // Group allSessions by student_id
+              const studentGroupsMap: Record<string, typeof allSessions> = {};
+              allSessions.forEach((s) => {
+                if (!studentGroupsMap[s.student_id]) studentGroupsMap[s.student_id] = [];
+                studentGroupsMap[s.student_id].push(s);
+              });
+
+              const filteredStudents = Object.entries(studentGroupsMap).map(([studentId, sessions]) => {
+                const totalFlags = sessions.reduce((acc, curr) => acc + curr.alert_count, 0);
+                const isLive = sessions.some(s => s.status === "in_progress");
+                const latestSession = sessions[0];
+                const gradedSession = sessions.find(s => s.score);
+                const cohorts = Array.from(new Set(sessions.map(s => s.exam_id || "default"))).join(", ");
+                return {
+                  student_id: studentId,
+                  session_count: sessions.length,
+                  cohorts,
+                  isLive,
+                  totalFlags,
+                  latestSession,
+                  gradedSession,
+                  sessions
+                };
+              }).filter((g) => {
+                const matchesStatus = sessionStatusFilter === "all" || (sessionStatusFilter === "in_progress" ? g.isLive : !g.isLive);
+                const q = sessionSearchQuery.toLowerCase().trim();
+                const matchesQuery = !q || g.student_id.toLowerCase().includes(q) || g.cohorts.toLowerCase().includes(q) || g.sessions.some(s => s.session_id.toLowerCase().includes(q));
+                return matchesStatus && matchesQuery;
+              });
+
+              return (
+                <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', overflow: 'hidden' }}>
+                  <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', margin: 0, letterSpacing: '0.1em' }}>
+                      Attended Students Directory ({filteredStudents.length} unique students)
+                    </h3>
+                    {sessionReport && (
+                      <button
+                        onClick={() => { setSessionReport(null); setSelectedSessionId(""); }}
+                        style={{ background: 'none', border: '1px solid var(--line)', color: 'var(--ink-soft)', borderRadius: '4px', padding: '4px 10px', fontSize: '11px', cursor: 'pointer', fontFamily: "'IBM Plex Mono', monospace" }}
+                      >
+                        ✕ Close Active Report
+                      </button>
+                    )}
+                  </div>
+
+                  {filteredStudents.length === 0 ? (
+                    <div style={{ padding: '48px', textAlign: 'center', color: 'var(--ink-soft)', fontSize: '13px', fontStyle: 'italic' }}>
+                      No student records match your search or filter.
+                    </div>
+                  ) : (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px', textAlign: 'left', fontFamily: "'IBM Plex Mono', monospace" }}>
+                        <thead>
+                          <tr style={{ background: 'var(--midnight)', borderBottom: '1px solid var(--line)', color: 'var(--ink-soft)' }}>
+                            <th style={{ padding: '12px 20px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Student ID</th>
+                            <th style={{ padding: '12px 20px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Exam Cohorts</th>
+                            <th style={{ padding: '12px 20px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Sessions</th>
+                            <th style={{ padding: '12px 20px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Status</th>
+                            <th style={{ padding: '12px 20px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Total Incidents</th>
+                            <th style={{ padding: '12px 20px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Latest Score</th>
+                            <th style={{ padding: '12px 20px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, textAlign: 'right' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody style={{ color: 'var(--ink)' }}>
+                          {filteredStudents.map((g) => {
+                            const isSelected = selectedSessionId && g.sessions.some(s => s.session_id === selectedSessionId);
+                            return (
+                              <tr
+                                key={g.student_id}
+                                onClick={() => loadSessionReport(g.latestSession.session_id)}
+                                style={{
+                                  borderBottom: '1px solid var(--line)',
+                                  cursor: 'pointer',
+                                  background: isSelected ? 'rgba(217, 182, 91, 0.08)' : 'transparent',
+                                  transition: 'background .15s'
+                                }}
+                              >
+                                <td style={{ padding: '12px 20px', fontWeight: 700, color: 'var(--oxford)' }}>{g.student_id}</td>
+                                <td style={{ padding: '12px 20px', color: 'var(--ink-soft)' }}>{g.cohorts}</td>
+                                <td style={{ padding: '12px 20px', color: 'var(--ink)' }}>
+                                  <span style={{ background: 'var(--midnight)', border: '1px solid var(--line)', borderRadius: 4, padding: '3px 8px', fontSize: 11, fontWeight: 600 }}>
+                                    {g.session_count} session{g.session_count > 1 ? 's' : ''}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '12px 20px' }}>
+                                  <span style={{
+                                    fontSize: '10px', padding: '3px 8px', borderRadius: '4px', fontWeight: 700,
+                                    background: g.isLive ? 'rgba(75, 122, 107, 0.15)' : 'rgba(255,255,255,0.05)',
+                                    color: g.isLive ? 'var(--verdigris)' : 'var(--ink-soft)'
+                                  }}>
+                                    {g.isLive ? "🟢 LIVE" : "🏁 COMPLETED"}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '12px 20px', color: g.totalFlags > 3 ? 'var(--seal)' : g.totalFlags > 0 ? 'var(--gold)' : 'var(--verdigris)', fontWeight: 600 }}>
+                                  {g.totalFlags} flags
+                                </td>
+                                <td style={{ padding: '12px 20px', fontWeight: 600 }}>
+                                  {g.gradedSession ? (
+                                    `${g.gradedSession.score} (${g.gradedSession.percentage ?? 0}%)`
+                                  ) : g.isLive ? (
+                                    <span style={{ color: 'var(--gold)', fontStyle: 'italic', fontWeight: 400 }}>In progress</span>
+                                  ) : (
+                                    <span style={{ color: 'var(--ink-soft)', fontStyle: 'italic', fontWeight: 400 }}>Ungraded</span>
+                                  )}
+                                </td>
+                                <td style={{ padding: '12px 20px', textAlign: 'right' }}>
+                                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); loadSessionReport(g.latestSession.session_id); }}
+                                      style={{
+                                        background: isSelected ? 'var(--oxford)' : 'var(--midnight)',
+                                        color: isSelected ? 'var(--midnight)' : 'var(--ink)',
+                                        border: '1px solid var(--line)', borderRadius: '4px',
+                                        padding: '6px 12px', fontSize: '11px', fontWeight: 600, cursor: 'pointer',
+                                        fontFamily: "'IBM Plex Mono', monospace"
+                                      }}
+                                    >
+                                      View Report →
+                                    </button>
+                                    <button
+                                      onClick={(e) => clearStudentSessions(g.student_id, e)}
+                                      title="Clear student history"
+                                      style={{
+                                        background: 'rgba(244, 63, 94, 0.1)',
+                                        color: 'var(--seal)',
+                                        border: '1px solid rgba(244, 63, 94, 0.2)',
+                                        borderRadius: '4px',
+                                        padding: '6px 10px',
+                                        fontSize: '11px',
+                                        cursor: 'pointer'
+                                      }}
+                                    >
+                                      🗑️
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {sessionReport && (
               <div style={{
                 display: 'grid',
                 gridTemplateColumns: '260px 1fr',
                 gap: '32px',
-                alignItems: 'start'
+                alignItems: 'start',
+                borderTop: '2px solid var(--gold)',
+                paddingTop: '24px'
               }}>
                 {/* Report metadata — aligned grid */}
                 <div style={{
@@ -1792,7 +2158,15 @@ export default function App() {
                   fontSize: '11px',
                   color: 'var(--ink-soft)'
                 }}>
-                  <span style={{ display: 'block', fontSize: '9px', textTransform: 'uppercase', color: 'var(--gold)', fontWeight: 600, letterSpacing: '0.15em', marginBottom: 18 }}>Report metadata</span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+                    <span style={{ fontSize: '9px', textTransform: 'uppercase', color: 'var(--gold)', fontWeight: 600, letterSpacing: '0.15em' }}>Report metadata</span>
+                    <button
+                      onClick={() => { setSessionReport(null); setSelectedSessionId(""); }}
+                      style={{ background: 'none', border: 'none', color: 'var(--ink-soft)', cursor: 'pointer', fontSize: 12 }}
+                    >
+                      ✕
+                    </button>
+                  </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', rowGap: 14 }}>
                     {[
                       ['Student', sessionReport.student_id],
@@ -1906,8 +2280,8 @@ export default function App() {
                 </div>
               </div>
             )}
-          </div>
-        )}
+           </div>
+        ) : null}
       </main>
 
       {/* Visual Alert keyframe detail Modal */}

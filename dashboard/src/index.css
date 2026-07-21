@@ -140,8 +140,9 @@ main {
 
 .section-title {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
+  gap: 16px;
   margin-bottom: 20px;
 }
 

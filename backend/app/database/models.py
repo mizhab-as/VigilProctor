@@ -63,6 +63,7 @@ class AuthorizedStudent(Base):
     student_id = Column(String, primary_key=True, index=True)
     student_name = Column(String, nullable=False)
     passcode = Column(String, nullable=False)
+    class_group = Column(String, nullable=True)  # e.g. "CS-2026-A"
 
 def init_db():
     Base.metadata.create_all(bind=engine)
@@ -150,69 +151,15 @@ def init_db():
             except Exception as e:
                 print(f"[DATABASE] Alter table active failed on exams: {e}")
 
-    # Initialize exams and questions if empty
-    import json
-    db_session = SessionLocal()
-    try:
-        # Seed default exam
-        count_exams = db_session.query(ExamModel).count()
-        if count_exams == 0:
-            print("[DATABASE] Seeding default exam...")
-            db_session.add(ExamModel(id="default", title="Default Proctoring Exam", description="General proctoring questions"))
-            db_session.commit()
+        # Check class_group in authorized_students
+        try:
+            conn.execute(text("SELECT class_group FROM authorized_students LIMIT 1"))
+        except Exception:
+            try:
+                conn.execute(text("ALTER TABLE authorized_students ADD COLUMN class_group VARCHAR"))
+                print("[DATABASE] Altered table authorized_students to add class_group column.")
+            except Exception as e:
+                print(f"[DATABASE] Alter table class_group failed on authorized_students: {e}")
 
-        count = db_session.query(QuestionModel).count()
-        if count == 0:
-            print("[DATABASE] Initializing default exam questions...")
-            default_questions = [
-                {
-                    "text": "According to Ramzan et al. (2024), which CNN/Object Detection architecture achieved the highest performance for online exam proctoring?",
-                    "options": ["DenseNet121", "Inception-V3", "Inception-ResNetV2", "YOLOv5"],
-                    "correct": 3
-                },
-                {
-                    "text": "In motion-based keyframe extraction, what is the role of the frame differencing threshold?",
-                    "options": [
-                        "To compress the video streams and reduce storage overhead on the server",
-                        "To eliminate redundant static frames and only pass high-motion transitions to the classification model",
-                        "To enhance image resolution and lighting levels using histogram models",
-                        "To track audio level anomalies and background voice cues"
-                    ],
-                    "correct": 1
-                },
-                {
-                    "text": "What is the primary benefit of deploying a WebSocket connection instead of HTTP polling in online proctoring systems?",
-                    "options": [
-                        "Securing the database from SQL Injection",
-                        "Reducing connection establishment overhead and enabling low-latency, real-time alert broadcasts",
-                        "Avoiding the need for client-side webcam permissions",
-                        "Enabling off-grid local storage without network streams"
-                    ],
-                    "correct": 1
-                },
-                {
-                    "text": "Which of the following is a privacy-by-design policy recommended for proctoring systems?",
-                    "options": [
-                        "Persisting 24/7 continuous video logs of students' rooms",
-                        "Storing only the keyframes classified as abnormal, and immediately discarding normal frames",
-                        "Uploading all user credentials directly to public clouds",
-                        "Disabling all local webcam warnings"
-                    ],
-                    "correct": 1
-                }
-            ]
-            for dq in default_questions:
-                q = QuestionModel(
-                    exam_id="default",
-                    text=dq["text"],
-                    options_json=json.dumps(dq["options"]),
-                    correct_option_idx=dq["correct"]
-                )
-                db_session.add(q)
-            db_session.commit()
-            print("[DATABASE] Default exam questions populated successfully.")
-    except Exception as e:
-        print(f"[DATABASE] Exam/Question initialization failed: {e}")
-        db_session.rollback()
-    finally:
-        db_session.close()
+    # Initialize database schemas
+    pass

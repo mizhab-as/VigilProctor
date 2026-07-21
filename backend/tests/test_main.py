@@ -180,3 +180,50 @@ def test_exam_grading_submission():
     stats_data = stats_resp.json()
     assert stats_data["total_completed"] >= 1
     assert stats_data["top_score"] == "50.0%"
+
+def test_verify_student():
+    # Invalid student
+    res = client.post("/students/verify", json={"student_id": "NO_STUDENT", "passcode": "pass"})
+    assert res.status_code == 401
+
+    # Invalid passcode
+    res = client.post("/students/verify", json={"student_id": "STUDENT-TEST-01", "passcode": "wrong"})
+    assert res.status_code == 401
+
+    # Valid
+    res = client.post("/students/verify", json={"student_id": "STUDENT-TEST-01", "passcode": "secret123"})
+    assert res.status_code == 200
+    assert res.json()["student_name"] == "Alice Test"
+
+def test_delete_questions_and_exam():
+    # Add a question to cyber_exam
+    q_resp = client.post("/questions", json={
+        "text": "What is phishing?",
+        "options": ["A", "B", "C", "D"],
+        "correct_option_idx": 0,
+        "exam_id": "cyber_exam"
+    })
+    assert q_resp.status_code == 200
+    q_id = q_resp.json()["id"]
+
+    # Delete single question
+    del_q = client.delete(f"/questions/{q_id}")
+    assert del_q.status_code == 200
+
+    # Verify deleted
+    res_qs = client.get("/questions?exam_id=cyber_exam")
+    q_ids = [q["id"] for q in res_qs.json()]
+    assert q_id not in q_ids
+
+    # Delete all questions for cyber_exam
+    del_qs = client.delete("/exams/cyber_exam/questions")
+    assert del_qs.status_code == 200
+
+    # Delete cyber_exam
+    del_ex = client.delete("/exams/cyber_exam")
+    assert del_ex.status_code == 200
+
+    # Verify default exam can also be deleted
+    del_def = client.delete("/exams/default")
+    assert del_def.status_code == 200
+

@@ -57,6 +57,9 @@ const CLASS_LABELS: Record<number, string> = {
 export default function App() {
   const [studentId, setStudentId] = useState("");
   const [passcode, setPasscode] = useState("");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [studentName, setStudentName] = useState("");
+  const [authenticating, setAuthenticating] = useState(false);
   const [selectedExamId, setSelectedExamId] = useState("default");
   const [examsList, setExamsList] = useState<Array<{ id: string; title: string; description?: string }>>([
     { id: "default", title: "Default Proctoring Exam" }
@@ -117,6 +120,7 @@ export default function App() {
   // Sync state with refs to prevent stale closure in FaceMesh callback
   const sessionStartedRef = useRef(sessionStarted);
   const wsRef = useRef(ws);
+  const sessionIdRef = useRef(sessionId);
 
   useEffect(() => {
     sessionStartedRef.current = sessionStarted;
@@ -125,6 +129,10 @@ export default function App() {
   useEffect(() => {
     wsRef.current = ws;
   }, [ws]);
+
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
 
   useEffect(() => {
     const fetchExams = async () => {
@@ -260,7 +268,13 @@ export default function App() {
   };
 
   // Upload highlight clip REST call
-  const uploadEvidenceClip = async (alertId: number) => {
+  const uploadEvidenceClip = async (alertId: number, currentSessionId?: string) => {
+    const targetSessionId = currentSessionId || sessionIdRef.current || sessionId;
+    if (!targetSessionId) {
+      console.warn("[RECORDER] Session ID is missing. Skipping clip upload.");
+      return;
+    }
+
     if (videoChunksRef.current.length === 0) {
       console.warn("[RECORDER] Evidence buffer is empty. Skipping upload.");
       return;
@@ -273,8 +287,8 @@ export default function App() {
     formData.append("file", file);
 
     try {
-      console.log(`[RECORDER] Uploading evidence clip for alert ${alertId}...`);
-      const response = await fetch(`http://localhost:8000/session/${sessionId}/alert/${alertId}/video`, {
+      console.log(`[RECORDER] Uploading evidence clip for alert ${alertId} (Session: ${targetSessionId})...`);
+      const response = await fetch(`http://localhost:8000/session/${targetSessionId}/alert/${alertId}/video`, {
         method: "POST",
         body: formData
       });
@@ -588,6 +602,61 @@ export default function App() {
     }
   }, []);
 
+  // Step 1: Handle student authentication login
+  const handleStudentLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!studentId.trim() || !passcode.trim()) {
+      setLoginError("Please enter both Registration ID and Passcode.");
+      return;
+    }
+    setLoginError("");
+    setAuthenticating(true);
+
+    try {
+      const res = await fetch("http://localhost:8000/students/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          student_id: studentId.trim(),
+          passcode: passcode.trim()
+        })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || "Authentication failed. Invalid Registration ID or Passcode.");
+      }
+
+      const data = await res.json();
+      setStudentName(data.student_name);
+      setIsLoggedIn(true);
+
+      // Fetch active exams list
+      try {
+        const examsRes = await fetch("http://localhost:8000/exams?student_view=true");
+        if (examsRes.ok) {
+          const eData = await examsRes.json();
+          if (Array.isArray(eData) && eData.length > 0) {
+            setExamsList(eData);
+            setSelectedExamId(eData[0].id);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch active exams:", err);
+      }
+    } catch (err: any) {
+      setLoginError(err.message || "Failed to connect to authentication service.");
+    } finally {
+      setAuthenticating(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setStudentName("");
+    setLoginError("");
+  };
+
   // Handle start session API and WS setup
   const startExam = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -601,7 +670,7 @@ export default function App() {
     try {
       // Fetch dynamic questions from backend (fall back to MOCK_QUESTIONS if unavailable)
       try {
-        const qRes = await fetch(`http://localhost:8000/questions?exam_id=${encodeURIComponent(selectedExamId)}`);
+        const qRes = await fetch(`http://localhost:8000/questions?exam_id=${encodeURIComponent(selectedExamId)}&student_view=true`);
         if (qRes.ok) {
           const qData = await qRes.json();
           if (Array.isArray(qData) && qData.length > 0) {
@@ -629,6 +698,7 @@ export default function App() {
 
       const data = await response.json();
       setSessionId(data.session_id);
+      sessionIdRef.current = data.session_id;
       setSessionStarted(true);
 
       // Start client Web Audio analysis
@@ -652,7 +722,7 @@ export default function App() {
           setWarnings((prev) => [msg.message, ...prev.slice(0, 4)]);
         } else if (msg.type === "alert_confirmation") {
           // Upload highlight clip matching this specific confirmation
-          uploadEvidenceClip(msg.alert_id);
+          uploadEvidenceClip(msg.alert_id, data.session_id);
         }
       };
 
@@ -664,15 +734,15 @@ export default function App() {
   };
 
   // Handle submit exam API and WS closure
-  // Handle submit exam API and WS closure
   const submitExam = useCallback(async () => {
     stopAudioAnalysis();
     if (ws) {
       ws.close();
     }
-    if (sessionId) {
+    const targetSessionId = sessionId || sessionIdRef.current;
+    if (targetSessionId) {
       try {
-        const res = await fetch(`http://localhost:8000/session/${sessionId}/submit`, {
+        const res = await fetch(`http://localhost:8000/session/${targetSessionId}/submit`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ answers })
@@ -789,17 +859,17 @@ export default function App() {
     return () => { clearInterval(timer); clearInterval(audioTimer); };
   }, [sessionStarted, ws, captureAndEvaluate, analyzeAudio]);
 
-  // Heartbeat loop — send live camera frame to admin dashboard every 5s
+  // Heartbeat loop — send live camera frame to admin dashboard at 500ms (2 FPS) low latency
   useEffect(() => {
     if (!sessionStarted || !ws) return;
     const heartbeat = setInterval(() => {
       if (webcamRef.current && ws.readyState === WebSocket.OPEN) {
-        const frame = webcamRef.current.getScreenshot();
+        const frame = webcamRef.current.getScreenshot({ width: 320, height: 240 });
         if (frame) {
           ws.send(JSON.stringify({ type: "heartbeat", frame }));
         }
       }
-    }, 5000);
+    }, 500);
     return () => clearInterval(heartbeat);
   }, [sessionStarted, ws]);
 
@@ -950,124 +1020,202 @@ export default function App() {
           </div>
 
           <div className="form-body">
-            <h1 style={{ fontFamily: "'Newsreader', serif", fontWeight: 600, fontSize: 40, lineHeight: 1.15, margin: '0 0 14px 0', letterSpacing: '-0.01em' }}>
-              Enter the&nbsp;Exam&nbsp;Hall
-            </h1>
-            <p className="lede">
-              Verify your registration credentials and confirm camera and microphone access to begin your session.
-            </p>
-
-            <form onSubmit={startExam}>
-              <div className="field">
-                <label htmlFor="student-id">Student registration ID</label>
-                <input
-                  id="student-id"
-                  type="text"
-                  required
-                  placeholder="e.g. MITS-CS-2026-08"
-                  value={studentId}
-                  onChange={(e) => setStudentId(e.target.value)}
-                />
-              </div>
-
-              <div className="field">
-                <label htmlFor="student-passcode">Access Passcode</label>
-                <input
-                  id="student-passcode"
-                  type="password"
-                  required
-                  placeholder="Enter passcode"
-                  value={passcode}
-                  onChange={(e) => setPasscode(e.target.value)}
-                />
-              </div>
-
-              <div className="field">
-                <label htmlFor="select-exam">Select Exam Cohort</label>
-                <select
-                  id="select-exam"
-                  value={selectedExamId}
-                  onChange={(e) => setSelectedExamId(e.target.value)}
-                  style={{
-                    width: '100%',
-                    border: 'none',
-                    borderBottom: '1px solid #CFC8B8',
-                    background: 'transparent',
-                    fontFamily: "'IBM Plex Mono', monospace",
-                    fontSize: '14.5px',
-                    color: 'var(--ink)',
-                    padding: '8px 2px 12px 2px',
-                    outline: 'none',
-                    borderRadius: 0,
-                    cursor: 'pointer',
-                    transition: 'border-color .15s ease'
-                  }}
-                >
-                  {examsList.map((exam) => (
-                    <option key={exam.id} value={exam.id}>
-                      {exam.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {loginError && (
-                <div style={{
-                  color: '#8C2F39',
-                  background: 'rgba(140, 47, 57, 0.08)',
-                  border: '1px solid rgba(140, 47, 57, 0.15)',
-                  borderRadius: '6px',
-                  padding: '10px 12px',
-                  fontSize: '12px',
-                  marginTop: '14px',
-                  textAlign: 'left',
-                  lineHeight: '1.4'
-                }}>
-                  {loginError}
-                </div>
-              )}
-
-              {/* Sensor readiness panel */}
-              <div className="sensor-panel">
-                <h4>Sensor readiness</h4>
-                <div className="sensor-row">
-                  <span>Local detection engine</span>
-                  {modelLoading ? (
-                    <span className="status" style={{ color: '#B8912F' }}>Loading…</span>
-                  ) : modelReady ? (
-                    <span className="status ready">Ready</span>
-                  ) : (
-                    <span className="status offline">Offline</span>
-                  )}
-                </div>
-                <div className="sensor-row">
-                  <span>Face tracking</span>
-                  {modelLoading ? (
-                    <span className="status" style={{ color: '#B8912F' }}>Loading…</span>
-                  ) : faceMeshRef.current ? (
-                    <span className="status ready">Connected</span>
-                  ) : (
-                    <span className="status offline">Disconnected</span>
-                  )}
-                </div>
-                {modelError && (
-                  <p className="sensor-note" style={{ color: '#8C2F39' }}>
-                    Engine error: {modelError}. Exam will run without AI proctoring.
-                  </p>
-                )}
-                <p className="sensor-note">
-                  Analysis runs on your device. No continuous audio or video leaves your browser — only brief violation keyframes are sent for the record.
+            {!isLoggedIn ? (
+              <>
+                <h1 style={{ fontFamily: "'Newsreader', serif", fontWeight: 600, fontSize: 38, lineHeight: 1.15, margin: '0 0 14px 0', letterSpacing: '-0.01em' }}>
+                  Student&nbsp;Sign-In
+                </h1>
+                <p className="lede">
+                  Enter your registration credentials to authenticate and view your available active exams.
                 </p>
-              </div>
 
-              <button
-                type="submit"
-                disabled={modelLoading}
-                className="btn-primary"
-              >
-                {modelLoading ? 'Loading engines…' : 'Start exam'}
-              </button>
-            </form>
+                <form onSubmit={handleStudentLogin}>
+                  <div className="field">
+                    <label htmlFor="student-id">Student registration ID</label>
+                    <input
+                      id="student-id"
+                      type="text"
+                      required
+                      placeholder="e.g. MITS-CS-2026-08"
+                      value={studentId}
+                      onChange={(e) => setStudentId(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="field">
+                    <label htmlFor="student-passcode">Access Passcode</label>
+                    <input
+                      id="student-passcode"
+                      type="password"
+                      required
+                      placeholder="Enter passcode"
+                      value={passcode}
+                      onChange={(e) => setPasscode(e.target.value)}
+                    />
+                  </div>
+
+                  {loginError && (
+                    <div style={{
+                      color: '#8C2F39',
+                      background: 'rgba(140, 47, 57, 0.08)',
+                      border: '1px solid rgba(140, 47, 57, 0.15)',
+                      borderRadius: '6px',
+                      padding: '10px 12px',
+                      fontSize: '12px',
+                      marginTop: '14px',
+                      textAlign: 'left',
+                      lineHeight: '1.4'
+                    }}>
+                      {loginError}
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={authenticating}
+                    className="btn-primary"
+                    style={{ marginTop: '20px' }}
+                  >
+                    {authenticating ? 'Verifying Credentials…' : 'Log in to Exam Hall'}
+                  </button>
+                </form>
+              </>
+            ) : (
+              <>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  background: 'rgba(30, 58, 95, 0.06)', border: '1px solid rgba(30, 58, 95, 0.15)',
+                  borderRadius: '6px', padding: '10px 14px', marginBottom: '20px'
+                }}>
+                  <div>
+                    <span style={{ fontSize: '11px', color: '#666', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Logged in as</span>
+                    <strong style={{ fontSize: '14px', color: '#1E3A5F', fontFamily: "'Inter', sans-serif" }}>{studentName || studentId}</strong>
+                    <span style={{ fontSize: '12px', color: '#888', marginLeft: '6px', fontFamily: "'IBM Plex Mono', monospace" }}>({studentId})</span>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    style={{
+                      background: 'transparent', border: '1px solid #CFC8B8', color: '#1E3A5F',
+                      borderRadius: '4px', padding: '4px 10px', fontSize: '11px', cursor: 'pointer',
+                      fontFamily: "'IBM Plex Mono', monospace"
+                    }}
+                  >
+                    Sign out
+                  </button>
+                </div>
+
+                <h1 style={{ fontFamily: "'Newsreader', serif", fontWeight: 600, fontSize: 36, lineHeight: 1.15, margin: '0 0 10px 0', letterSpacing: '-0.01em' }}>
+                  Available Active Exams
+                </h1>
+                <p className="lede" style={{ marginBottom: '18px' }}>
+                  Select from the currently active exam cohorts assigned to your department.
+                </p>
+
+                <form onSubmit={startExam}>
+                  <div className="field">
+                    <label htmlFor="select-exam">Select Active Exam Cohort</label>
+                    <select
+                      id="select-exam"
+                      value={selectedExamId}
+                      onChange={(e) => setSelectedExamId(e.target.value)}
+                      style={{
+                        width: '100%',
+                        border: 'none',
+                        borderBottom: '2px solid #1E3A5F',
+                        background: 'rgba(255, 255, 255, 0.5)',
+                        fontFamily: "'Inter', sans-serif",
+                        fontWeight: 600,
+                        fontSize: '15px',
+                        color: '#1E3A5F',
+                        padding: '10px 4px',
+                        outline: 'none',
+                        borderRadius: '4px 4px 0 0',
+                        cursor: 'pointer',
+                        transition: 'border-color .15s ease'
+                      }}
+                    >
+                      {examsList.map((exam) => (
+                        <option key={exam.id} value={exam.id}>
+                          {exam.title} ({exam.id})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Active exam details card */}
+                  {(() => {
+                    const currentExam = examsList.find(e => e.id === selectedExamId);
+                    if (!currentExam) return null;
+                    return (
+                      <div style={{
+                        background: '#FFF', border: '1px solid #E2DCCE', borderRadius: '6px',
+                        padding: '12px 16px', margin: '14px 0', fontSize: '13px', lineHeight: '1.4'
+                      }}>
+                        <strong style={{ color: '#1E3A5F', display: 'block', marginBottom: '2px' }}>{currentExam.title}</strong>
+                        <p style={{ margin: 0, color: '#666', fontSize: '12px' }}>{currentExam.description || "Official proctored examination cohort."}</p>
+                      </div>
+                    );
+                  })()}
+
+                  {loginError && (
+                    <div style={{
+                      color: '#8C2F39',
+                      background: 'rgba(140, 47, 57, 0.08)',
+                      border: '1px solid rgba(140, 47, 57, 0.15)',
+                      borderRadius: '6px',
+                      padding: '10px 12px',
+                      fontSize: '12px',
+                      marginTop: '14px',
+                      textAlign: 'left',
+                      lineHeight: '1.4'
+                    }}>
+                      {loginError}
+                    </div>
+                  )}
+
+                  {/* Sensor readiness panel */}
+                  <div className="sensor-panel">
+                    <h4>Sensor readiness</h4>
+                    <div className="sensor-row">
+                      <span>Local detection engine</span>
+                      {modelLoading ? (
+                        <span className="status" style={{ color: '#B8912F' }}>Loading…</span>
+                      ) : modelReady ? (
+                        <span className="status ready">Ready</span>
+                      ) : (
+                        <span className="status offline">Offline</span>
+                      )}
+                    </div>
+                    <div className="sensor-row">
+                      <span>Face tracking</span>
+                      {modelLoading ? (
+                        <span className="status" style={{ color: '#B8912F' }}>Loading…</span>
+                      ) : faceMeshRef.current ? (
+                        <span className="status ready">Connected</span>
+                      ) : (
+                        <span className="status offline">Disconnected</span>
+                      )}
+                    </div>
+                    {modelError && (
+                      <p className="sensor-note" style={{ color: '#8C2F39' }}>
+                        Engine error: {modelError}. Exam will run without AI proctoring.
+                      </p>
+                    )}
+                    <p className="sensor-note">
+                      Analysis runs locally on your device. No continuous audio or video leaves your browser.
+                    </p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={modelLoading}
+                    className="btn-primary"
+                  >
+                    {modelLoading ? 'Loading engines…' : 'Start exam'}
+                  </button>
+                </form>
+              </>
+            )}
           </div>
 
           <div className="form-footer">Proctor Core v1.1 · Sealed Integrity</div>
