@@ -15,13 +15,17 @@ from app.core.inference import ExamGuardInferenceEngine
 from app.database.models import init_db, SessionLocal, ExamSession, SessionAlert, QuestionModel, AuthorizedStudent, ExamModel
 
 # Initialize directories for image persistence
-DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../data"))
+DATA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data"))
 FRAMES_DIR = os.path.join(DATA_DIR, "frames")
 THUMBNAILS_DIR = os.path.join(DATA_DIR, "thumbnails")
 CLIPS_DIR = os.path.join(DATA_DIR, "clips")
-os.makedirs(FRAMES_DIR, exist_ok=True)
-os.makedirs(THUMBNAILS_DIR, exist_ok=True)
-os.makedirs(CLIPS_DIR, exist_ok=True)
+
+try:
+    os.makedirs(FRAMES_DIR, exist_ok=True)
+    os.makedirs(THUMBNAILS_DIR, exist_ok=True)
+    os.makedirs(CLIPS_DIR, exist_ok=True)
+except Exception as e:
+    print(f"[SYSTEM] Warning: Failed to create persistent folders ({e}). Operating in transient mode.")
 
 app = FastAPI(title="ExamGuard - Online Proctoring Engine")
 
