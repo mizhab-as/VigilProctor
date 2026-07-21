@@ -63,9 +63,12 @@ export default function App() {
   const [liveFeeds, setLiveFeeds] = useState<Record<string, string>>({});
 
   // Student directory state
-  const [studentsList, setStudentsList] = useState<{student_id: string; student_name: string; passcode: string; class_group: string}[]>([]);
+  const [studentsList, setStudentsList] = useState<{student_id: string; student_name: string; passcode: string; class_group: string | null}[]>([]);
   const [uploadingStudents, setUploadingStudents] = useState(false);
   const [studentsUploadStatus, setStudentsUploadStatus] = useState("");
+  const [customGroupName, setCustomGroupName] = useState("");       // user-typed class group override
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set()); // which group panels are open
+  const [showUngrouped, setShowUngrouped] = useState(false);         // toggle to reveal ungrouped students
 
   // Question management state
   const [questionsList, setQuestionsList] = useState<{id: number; exam_id: string; text: string; options: string[]; correct_option_idx?: number}[]>([]);
@@ -360,6 +363,9 @@ export default function App() {
     setStudentsUploadStatus("");
     const formData = new FormData();
     formData.append("file", file);
+    if (customGroupName.trim()) {
+      formData.append("class_group_override", customGroupName.trim());
+    }
 
     try {
       const res = await fetch("http://localhost:8000/students/upload", {
@@ -369,6 +375,10 @@ export default function App() {
       const data = await res.json();
       if (res.ok) {
         setStudentsUploadStatus(`Success: ${data.message}`);
+        // Auto-expand the newly uploaded group
+        if (data.class_group) {
+          setExpandedGroups(prev => new Set([...prev, data.class_group]));
+        }
         fetchStudents();
       } else {
         setStudentsUploadStatus(`Error: ${data.detail || "Upload failed."}`);
@@ -1744,19 +1754,42 @@ export default function App() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div className="section-title">
               <h2>Student directory</h2>
-              <span className="meta">{studentsList.length} authorized students across {new Set(studentsList.map(s => s.class_group)).size} class groups</span>
+              <span className="meta">
+                {studentsList.filter(s => s.class_group).length} students in {new Set(studentsList.filter(s => s.class_group).map(s => s.class_group)).size} class groups
+                {studentsList.filter(s => !s.class_group).length > 0 && ` · ${studentsList.filter(s => !s.class_group).length} ungrouped`}
+              </span>
             </div>
 
             {/* CSV Batch Upload */}
             <div style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', padding: '24px' }}>
               <h3 style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10.5px', textTransform: 'uppercase', color: 'var(--ink-soft)', marginBottom: '8px', letterSpacing: '0.1em' }}>
-                Batch Import Student Directory
+                Import Class CSV
               </h3>
               <p style={{ fontSize: '12px', color: 'var(--ink-soft)', margin: '0 0 16px 0', lineHeight: '1.5' }}>
-                Upload a CSV file containing your class. Required headers: <code>student_id</code>, <code>student_name</code>, <code>passcode</code>. Optional: <code>class_group</code> (e.g. <code>CS-2026-A</code>).
+                Required CSV headers: <code>student_id</code>, <code>student_name</code>, <code>passcode</code>.<br/>
+                Set the class group name below — overrides any <code>class_group</code> column in the file.
               </p>
-              
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+
+              {/* Group name input */}
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontFamily: "'IBM Plex Mono', monospace", fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--gold)', marginBottom: '6px' }}>
+                  Class Group Name (override)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. CS-2026-A  — leave blank to use CSV column"
+                  value={customGroupName}
+                  onChange={(e) => setCustomGroupName(e.target.value)}
+                  style={{
+                    width: '100%', maxWidth: '380px',
+                    background: 'var(--midnight)', border: '1px solid var(--line)',
+                    color: 'var(--ink)', fontFamily: "'IBM Plex Mono', monospace",
+                    fontSize: '12.5px', padding: '9px 14px', borderRadius: '6px', outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
                 <input
                   type="file"
                   accept=".csv"
@@ -1775,13 +1808,12 @@ export default function App() {
                     display: 'inline-block'
                   }}
                 >
-                  {uploadingStudents ? 'Uploading CSV…' : 'Select & Upload CSV'}
+                  {uploadingStudents ? 'Uploading…' : 'Select & Upload CSV'}
                 </label>
 
                 {studentsUploadStatus && (
                   <span style={{
-                    fontSize: '12px',
-                    fontFamily: "'IBM Plex Mono', monospace",
+                    fontSize: '12px', fontFamily: "'IBM Plex Mono', monospace",
                     color: studentsUploadStatus.startsWith("Success") ? 'var(--verdigris)' : 'var(--seal)'
                   }}>
                     {studentsUploadStatus}
@@ -1796,104 +1828,147 @@ export default function App() {
                 No students in directory. Upload a CSV file above to authorize logins.
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {(() => {
-                  // Group students by class_group
-                  const groups: Record<string, typeof studentsList> = {};
+                  // Only show students with a class_group; handle ungrouped separately
+                  const grouped: Record<string, typeof studentsList> = {};
+                  const ungrouped: typeof studentsList = [];
                   for (const s of studentsList) {
-                    const g = s.class_group || 'Ungrouped';
-                    if (!groups[g]) groups[g] = [];
-                    groups[g].push(s);
+                    if (s.class_group) {
+                      if (!grouped[s.class_group]) grouped[s.class_group] = [];
+                      grouped[s.class_group].push(s);
+                    } else {
+                      ungrouped.push(s);
+                    }
                   }
-                  return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b)).map(([groupName, members]) => (
-                    <div key={groupName} style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', overflow: 'hidden' }}>
-                      {/* Group header */}
-                      <div style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        padding: '14px 20px', background: 'var(--midnight)', borderBottom: '1px solid var(--line)'
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <span style={{
-                            fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', fontWeight: 700,
-                            textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--gold)'
-                          }}>📁 {groupName}</span>
-                          <span style={{
-                            background: 'rgba(189, 147, 64, 0.12)', color: 'var(--gold)',
-                            border: '1px solid rgba(189, 147, 64, 0.25)', borderRadius: '10px',
-                            padding: '2px 10px', fontSize: '10px', fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600
-                          }}>{members.length} students</span>
-                        </div>
-                        <button
-                          onClick={async () => {
-                            if (!window.confirm(`Delete all ${members.length} students in class "${groupName}"? This cannot be undone.`)) return;
-                            try {
-                              const res = await fetch(`http://localhost:8000/students/group/${encodeURIComponent(groupName)}`, { method: 'DELETE' });
-                              if (res.ok) {
-                                setStudentsList(prev => prev.filter(s => s.class_group !== groupName));
-                                setStudentsUploadStatus(`Deleted class group "${groupName}"`);
-                              }
-                            } catch { setStudentsUploadStatus('Error: Failed to delete group'); }
-                          }}
-                          style={{
-                            background: 'rgba(140, 47, 57, 0.15)', color: 'var(--seal)',
-                            border: '1px solid rgba(140, 47, 57, 0.3)', borderRadius: '4px',
-                            padding: '5px 12px', fontSize: '10.5px', fontWeight: 600,
-                            cursor: 'pointer', fontFamily: "'IBM Plex Mono', monospace"
-                          }}
-                        >
-                          🗑 Delete Group
-                        </button>
-                      </div>
 
-                      {/* Students table within group */}
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left', fontFamily: "'IBM Plex Mono', monospace" }}>
-                          <thead>
-                            <tr style={{ background: 'rgba(255,255,255,0.025)', borderBottom: '1px solid var(--line)', color: 'var(--ink-soft)' }}>
-                              <th style={{ padding: '9px 20px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Registration ID</th>
-                              <th style={{ padding: '9px 20px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Full Name</th>
-                              <th style={{ padding: '9px 20px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Access Passcode</th>
-                              <th style={{ padding: '9px 20px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Actions</th>
+                  const renderStudentTable = (members: typeof studentsList) => (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', textAlign: 'left', fontFamily: "'IBM Plex Mono', monospace" }}>
+                        <thead>
+                          <tr style={{ background: 'rgba(255,255,255,0.025)', borderBottom: '1px solid var(--line)', color: 'var(--ink-soft)' }}>
+                            <th style={{ padding: '9px 20px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Registration ID</th>
+                            <th style={{ padding: '9px 20px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Full Name</th>
+                            <th style={{ padding: '9px 20px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Passcode</th>
+                            <th style={{ padding: '9px 20px', fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody style={{ color: 'var(--ink)' }}>
+                          {members.map((student) => (
+                            <tr key={student.student_id} style={{ borderBottom: '1px solid var(--line)' }}>
+                              <td style={{ padding: '10px 20px', fontWeight: 600, color: 'var(--oxford)' }}>{student.student_id}</td>
+                              <td style={{ padding: '10px 20px', fontFamily: "'Inter', sans-serif" }}>{student.student_name}</td>
+                              <td style={{ padding: '10px 20px' }}><code>{student.passcode}</code></td>
+                              <td style={{ padding: '10px 20px' }}>
+                                <button
+                                  onClick={async () => {
+                                    if (!window.confirm(`Remove "${student.student_name}" (${student.student_id})?`)) return;
+                                    try {
+                                      const res = await fetch(`http://localhost:8000/students/${encodeURIComponent(student.student_id)}`, { method: 'DELETE' });
+                                      if (res.ok) setStudentsList(prev => prev.filter(s => s.student_id !== student.student_id));
+                                    } catch { setStudentsUploadStatus('Error: Failed to delete student'); }
+                                  }}
+                                  style={{
+                                    background: 'rgba(140,47,57,0.12)', color: '#FF6B6B',
+                                    border: '1px solid rgba(255,107,107,0.25)', borderRadius: '4px',
+                                    padding: '4px 10px', fontSize: '10.5px', fontWeight: 600,
+                                    cursor: 'pointer', fontFamily: "'IBM Plex Mono', monospace"
+                                  }}
+                                >
+                                  Remove
+                                </button>
+                              </td>
                             </tr>
-                          </thead>
-                          <tbody style={{ color: 'var(--ink)' }}>
-                            {members.map((student) => (
-                              <tr key={student.student_id} style={{ borderBottom: '1px solid var(--line)' }}>
-                                <td style={{ padding: '10px 20px', fontWeight: 600, color: 'var(--oxford)' }}>{student.student_id}</td>
-                                <td style={{ padding: '10px 20px', fontFamily: "'Inter', sans-serif" }}>{student.student_name}</td>
-                                <td style={{ padding: '10px 20px' }}><code>{student.passcode}</code></td>
-                                <td style={{ padding: '10px 20px' }}>
-                                  <button
-                                    onClick={async () => {
-                                      if (!window.confirm(`Remove student "${student.student_name}" (${student.student_id})?`)) return;
-                                      try {
-                                        const res = await fetch(`http://localhost:8000/students/${encodeURIComponent(student.student_id)}`, { method: 'DELETE' });
-                                        if (res.ok) {
-                                          setStudentsList(prev => prev.filter(s => s.student_id !== student.student_id));
-                                        }
-                                      } catch { setStudentsUploadStatus('Error: Failed to delete student'); }
-                                    }}
-                                    style={{
-                                      background: 'rgba(140, 47, 57, 0.12)', color: '#FF6B6B',
-                                      border: '1px solid rgba(255, 107, 107, 0.25)', borderRadius: '4px',
-                                      padding: '4px 10px', fontSize: '10.5px', fontWeight: 600,
-                                      cursor: 'pointer', fontFamily: "'IBM Plex Mono', monospace"
-                                    }}
-                                  >
-                                    Remove
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                  ));
+                  );
+
+                  return (
+                    <>
+                      {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([groupName, members]) => {
+                        const isOpen = expandedGroups.has(groupName);
+                        return (
+                          <div key={groupName} style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: '6px', overflow: 'hidden' }}>
+                            {/* Clickable group header */}
+                            <div
+                              onClick={() => setExpandedGroups(prev => {
+                                const next = new Set(prev);
+                                isOpen ? next.delete(groupName) : next.add(groupName);
+                                return next;
+                              })}
+                              style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                padding: '14px 20px', background: 'var(--midnight)',
+                                borderBottom: isOpen ? '1px solid var(--line)' : 'none',
+                                cursor: 'pointer', userSelect: 'none'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <span style={{ fontSize: '13px', transition: 'transform 0.15s', display: 'inline-block', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
+                                <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--gold)' }}>
+                                  {groupName}
+                                </span>
+                                <span style={{
+                                  background: 'rgba(189,147,64,0.12)', color: 'var(--gold)',
+                                  border: '1px solid rgba(189,147,64,0.25)', borderRadius: '10px',
+                                  padding: '2px 10px', fontSize: '10px', fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600
+                                }}>{members.length} students</span>
+                              </div>
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (!window.confirm(`Delete all ${members.length} students in "${groupName}"? Cannot be undone.`)) return;
+                                  try {
+                                    const res = await fetch(`http://localhost:8000/students/group/${encodeURIComponent(groupName)}`, { method: 'DELETE' });
+                                    if (res.ok) {
+                                      setStudentsList(prev => prev.filter(s => s.class_group !== groupName));
+                                      setExpandedGroups(prev => { const n = new Set(prev); n.delete(groupName); return n; });
+                                      setStudentsUploadStatus(`Deleted class "${groupName}"`);
+                                    }
+                                  } catch { setStudentsUploadStatus('Error: Delete failed'); }
+                                }}
+                                style={{
+                                  background: 'rgba(140,47,57,0.15)', color: 'var(--seal)',
+                                  border: '1px solid rgba(140,47,57,0.3)', borderRadius: '4px',
+                                  padding: '5px 12px', fontSize: '10.5px', fontWeight: 600,
+                                  cursor: 'pointer', fontFamily: "'IBM Plex Mono', monospace"
+                                }}
+                              >
+                                🗑 Delete Group
+                              </button>
+                            </div>
+                            {isOpen && renderStudentTable(members)}
+                          </div>
+                        );
+                      })}
+
+                      {/* Ungrouped students toggle */}
+                      {ungrouped.length > 0 && (
+                        <div style={{ background: 'var(--panel)', border: '1px dashed var(--line)', borderRadius: '6px', overflow: 'hidden' }}>
+                          <div
+                            onClick={() => setShowUngrouped(v => !v)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '12px',
+                              padding: '12px 20px', background: 'var(--midnight)', cursor: 'pointer', userSelect: 'none'
+                            }}
+                          >
+                            <span style={{ fontSize: '12px', display: 'inline-block', transform: showUngrouped ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}>▶</span>
+                            <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: '10px', color: 'var(--ink-soft)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                              Ungrouped students — {ungrouped.length}
+                            </span>
+                          </div>
+                          {showUngrouped && renderStudentTable(ungrouped)}
+                        </div>
+                      )}
+                    </>
+                  );
                 })()}
               </div>
             )}
           </div>
+
         ) : currentView === "reports" ? (
           /* Session Reports Tab — Unique Student Directory + Detailed Ledger Inspector */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>

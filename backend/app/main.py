@@ -762,7 +762,7 @@ def get_authorized_students(db: Session = Depends(get_db)):
             "student_id": s.student_id,
             "student_name": s.student_name,
             "passcode": s.passcode,
-            "class_group": s.class_group or "Ungrouped"
+            "class_group": s.class_group  # None if unset — frontend decides how to label it
         }
         for s in students
     ]
@@ -783,7 +783,11 @@ def delete_student_group(class_group: str, db: Session = Depends(get_db)):
     return {"status": "success", "message": f"Deleted {deleted} students from group '{class_group}'."}
 
 @app.post("/students/upload")
-async def upload_students_csv(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_students_csv(
+    file: UploadFile = File(...),
+    class_group_override: str | None = Form(None),
+    db: Session = Depends(get_db)
+):
     import csv
     import io
     content = await file.read()
@@ -792,16 +796,22 @@ async def upload_students_csv(file: UploadFile = File(...), db: Session = Depend
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid file encoding. Must be UTF-8 CSV.")
 
+    # Normalize override: empty string treated as None
+    override = class_group_override.strip() if class_group_override and class_group_override.strip() else None
+
     reader = csv.DictReader(io.StringIO(csv_text))
-    # Required headers: student_id, student_name, passcode
-    # Optional: class_group
     student_count = 0
-    class_group_from_file = None
+    final_group = override  # May be refined below if no override
     for row in reader:
         sid = row.get("student_id") or row.get("registration_id") or row.get("id")
         sname = row.get("student_name") or row.get("name")
         passcode = row.get("passcode") or row.get("password") or row.get("pass")
-        class_group = row.get("class_group") or row.get("class") or row.get("group")
+        # If override supplied, use it; otherwise read from CSV column
+        if override:
+            class_group = override
+        else:
+            csv_group = row.get("class_group") or row.get("class") or row.get("group")
+            class_group = csv_group.strip() if csv_group else None
 
         if not sid or not sname or not passcode:
             continue
@@ -809,17 +819,15 @@ async def upload_students_csv(file: UploadFile = File(...), db: Session = Depend
         sid = sid.strip()
         sname = sname.strip()
         passcode = passcode.strip()
-        class_group = class_group.strip() if class_group else None
-        if class_group:
-            class_group_from_file = class_group  # Track for response
+        if class_group and not final_group:
+            final_group = class_group  # Track first resolved group for response
 
         # Upsert
         student = db.query(AuthorizedStudent).filter(AuthorizedStudent.student_id == sid).first()
         if student:
             student.student_name = sname
             student.passcode = passcode
-            if class_group:
-                student.class_group = class_group
+            student.class_group = class_group  # Always update group (even to None if no group set)
         else:
             student = AuthorizedStudent(student_id=sid, student_name=sname, passcode=passcode, class_group=class_group)
             db.add(student)
@@ -827,9 +835,9 @@ async def upload_students_csv(file: UploadFile = File(...), db: Session = Depend
 
     db.commit()
     msg = f"Successfully imported {student_count} students."
-    if class_group_from_file:
-        msg += f" Class group: '{class_group_from_file}'."
-    return {"status": "success", "message": msg}
+    if final_group:
+        msg += f" Class group: '{final_group}'."
+    return {"status": "success", "message": msg, "class_group": final_group}
 
 @app.post("/questions/upload")
 async def upload_questions_file(
